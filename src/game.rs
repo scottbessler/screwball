@@ -384,6 +384,8 @@ pub fn apply_move(
             words: Vec::new(),
             points: 0,
         },
+        // Settlement entries are produced only by `finish_game`, never submitted.
+        MoveKind::EndAdjustment { .. } => unreachable!("end adjustments are engine-internal"),
     };
 
     if recorded.points == 0 {
@@ -425,10 +427,30 @@ fn finish_game(game: &mut Game, went_out: Option<usize>) {
         .map(|seat| seat.rack.iter().map(|tile| tile.points() as i32).sum())
         .collect();
     let total_remaining: i32 = remaining.iter().sum();
+    let leftover: Vec<Vec<Tile>> = game.seats.iter().map(|seat| seat.rack.clone()).collect();
     for (index, seat) in game.seats.iter_mut().enumerate() {
         seat.score -= remaining[index];
         if Some(index) == went_out {
             seat.score += total_remaining;
+        }
+    }
+    // Record the settlement in the move log so the UI can show each penalty
+    // and the going-out bonus.
+    for index in 0..game.seats.len() {
+        let mut delta = -remaining[index];
+        if Some(index) == went_out {
+            delta += total_remaining;
+        }
+        if delta != 0 {
+            game.moves.push(Move {
+                seat: index,
+                kind: MoveKind::EndAdjustment {
+                    delta,
+                    tiles: leftover[index].clone(),
+                },
+                words: Vec::new(),
+                points: 0,
+            });
         }
     }
     game.status = GameStatus::Finished;

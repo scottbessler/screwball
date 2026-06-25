@@ -53,6 +53,8 @@ pub struct MoveView {
     pub kind: &'static str,
     pub words: Vec<String>,
     pub points: u32,
+    /// Signed score change for end-game settlement entries; `0` otherwise.
+    pub delta: i32,
 }
 
 impl GameView {
@@ -145,15 +147,27 @@ pub fn premium_code(premium: Premium) -> &'static str {
 }
 
 fn move_view(mv: &Move) -> MoveView {
+    let (kind, words, delta) = match &mv.kind {
+        MoveKind::Play { .. } => ("play", mv.words.clone(), 0),
+        MoveKind::Exchange { .. } => ("exchange", mv.words.clone(), 0),
+        MoveKind::Pass => ("pass", mv.words.clone(), 0),
+        MoveKind::EndAdjustment { delta, tiles } => {
+            ("adjustment", tiles.iter().map(tile_label).collect(), *delta)
+        }
+    };
     MoveView {
         seat: mv.seat,
-        kind: match mv.kind {
-            MoveKind::Play { .. } => "play",
-            MoveKind::Exchange { .. } => "exchange",
-            MoveKind::Pass => "pass",
-        },
-        words: mv.words.clone(),
+        kind,
+        words,
         points: mv.points,
+        delta,
+    }
+}
+
+fn tile_label(tile: &Tile) -> String {
+    match tile {
+        Tile::Letter(letter) => letter.to_string(),
+        Tile::Blank => "?".to_string(),
     }
 }
 

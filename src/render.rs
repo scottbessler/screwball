@@ -287,6 +287,12 @@ fn render_move_log(view: &GameView) -> String {
             let detail = match mv.kind {
                 "play" => format!("{} (+{})", mv.words.join(", "), mv.points),
                 "exchange" => "exchanged tiles".to_string(),
+                "adjustment" if mv.delta >= 0 => {
+                    format!("out bonus (+{})", mv.delta)
+                }
+                "adjustment" => {
+                    format!("leftover {} ({})", mv.words.join(""), mv.delta)
+                }
                 _ => "passed".to_string(),
             };
             format!("<li><strong>{name}</strong>: {detail}</li>")

@@ -185,6 +185,21 @@ fn emptying_rack_with_empty_bag_finishes_game() {
     // AT: A on center DW = (1+1)*2 = 4, plus opponent's leftover O(1) = 5.
     assert_eq!(game.seats[0].score, 5);
     assert_eq!(game.seats[1].score, -1);
+
+    // The settlement is recorded in the move log: a +1 out bonus for seat 0
+    // and a -1 leftover penalty (the O tile) for seat 1.
+    let adjustments: Vec<_> = game
+        .moves
+        .iter()
+        .filter_map(|mv| match &mv.kind {
+            MoveKind::EndAdjustment { delta, tiles } => Some((mv.seat, *delta, tiles.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        adjustments,
+        vec![(0, 1, vec![]), (1, -1, vec![letter('O')])],
+    );
 }
 
 #[test]

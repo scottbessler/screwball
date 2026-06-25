@@ -189,6 +189,11 @@ function MoveLog({ game }) {
         detail = `${mv.words.join(", ")} (+${mv.points})`;
       } else if (mv.kind === "exchange") {
         detail = "exchanged tiles";
+      } else if (mv.kind === "adjustment") {
+        detail =
+          mv.delta >= 0
+            ? `out bonus (+${mv.delta})`
+            : `leftover ${mv.words.join("")} (${mv.delta})`;
       } else {
         detail = "passed";
       }
