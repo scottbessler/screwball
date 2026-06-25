@@ -1,0 +1,7 @@
+[tools]
+bun = "1.3.13"
+node = "22.12.0"
+
+[tasks.install]
+alias = "i"
+run = "bun install"

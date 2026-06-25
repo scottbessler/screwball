@@ -1,0 +1,16 @@
+{
+  "name": "Screwball",
+  "short_name": "Screwball",
+  "description": "A Scrabble-style letter game for 2-4 players with computer opponents.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#b4451f",
+  "icons": [
+    {
+      "src": "/public/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

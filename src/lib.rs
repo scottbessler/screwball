@@ -1,0 +1,9 @@
+pub mod app;
+pub mod bag;
+pub mod board;
+pub mod dict;
+pub mod error;
+pub mod game;
+pub mod models;
+pub mod render;
+pub mod routes;
