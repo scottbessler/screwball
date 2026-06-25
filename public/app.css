@@ -1,0 +1,138 @@
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --ink: #1f2933;
+  --muted: #6b7280;
+  --accent: #b4451f;
+  --line: #d8d2c4;
+  --board-bg: #e9e3d4;
+  --dl: #bcd9e6;
+  --tl: #5fa8c4;
+  --dw: #efc2b3;
+  --tw: #d9603f;
+  --tile: #f6e6b4;
+  --tile-edge: #d8c27e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.nav .brand {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-links a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.nav-links a:hover {
+  color: var(--accent);
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.card h1 {
+  margin-top: 0;
+}
+
+.button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 2px;
+  background: var(--line);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+  margin-top: 1rem;
+  max-width: 600px;
+  aspect-ratio: 1 / 1;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--board-bg);
+  border-radius: 3px;
+  font-size: clamp(0.45rem, 1.4vw, 0.7rem);
+  font-weight: 700;
+  color: rgba(31, 41, 51, 0.7);
+  aspect-ratio: 1 / 1;
+}
+
+.premium-dl { background: var(--dl); }
+.premium-tl { background: var(--tl); color: #fff; }
+.premium-dw { background: var(--dw); }
+.premium-tw { background: var(--tw); color: #fff; }
+
+.cell.tile {
+  background: var(--tile);
+  border: 1px solid var(--tile-edge);
+  color: var(--ink);
+}
+
+.tile-letter {
+  font-size: clamp(0.6rem, 2vw, 1rem);
+  text-transform: uppercase;
+}
+
+.tile-points {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: clamp(0.35rem, 0.9vw, 0.5rem);
+  font-weight: 600;
+}
+
+.tile-blank .tile-letter {
+  color: var(--accent);
+}
