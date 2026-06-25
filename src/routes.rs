@@ -127,11 +127,21 @@ pub async fn game_page(
     Ok(Html(render::game_page(&view, &initial)))
 }
 
+#[derive(Deserialize)]
+pub struct JoinForm {
+    name: Option<String>,
+}
+
 pub async fn join_game(
     State(state): State<AppState>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
+    Form(form): Form<JoinForm>,
 ) -> Result<Redirect, AppError> {
+    let name = form
+        .name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty());
     state
         .store
         .update(id, |game| {
@@ -148,6 +158,9 @@ pub async fn join_game(
                 seat.kind = SeatKind::Human {
                     user_id: Some(user),
                 };
+                if let Some(name) = &name {
+                    seat.name = name.clone();
+                }
             }
         })
         .await?;

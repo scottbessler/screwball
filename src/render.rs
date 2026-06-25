@@ -161,6 +161,7 @@ pub fn game_page(view: &GameView, initial_json: &str) -> String {
     let scoreboard = render_scoreboard(view);
     let log = render_move_log(view);
     let status_banner = render_status_banner(view);
+    let join = render_join_form(view);
     // Neutralize any "</..." sequence (e.g. a player name containing "</script>")
     // so embedded JSON can't break out of the surrounding <script> element.
     let initial_json = initial_json.replace("</", "<\\/");
@@ -173,6 +174,7 @@ pub fn game_page(view: &GameView, initial_json: &str) -> String {
     <div class="game-layout">
       <div class="board-wrap">
         {board}
+        {join}
       </div>
       <aside class="sidebar">
         {scoreboard}
@@ -187,6 +189,23 @@ pub fn game_page(view: &GameView, initial_json: &str) -> String {
         id = view.id,
     );
     layout_with_head("Game — Screwball", &body, head)
+}
+
+fn render_join_form(view: &GameView) -> String {
+    let open_seat = view.seats.iter().any(|seat| seat.open);
+    if view.your_seat.is_some() || !open_seat {
+        return String::new();
+    }
+    format!(
+        r#"<form class="join-form" method="post" action="/games/{id}/join">
+  <p class="muted">An open seat is waiting. Join to play.</p>
+  <label>Your name
+    <input type="text" name="name" maxlength="24" placeholder="You">
+  </label>
+  <button type="submit" class="button">Join game</button>
+</form>"#,
+        id = view.id,
+    )
 }
 
 fn render_status_banner(view: &GameView) -> String {

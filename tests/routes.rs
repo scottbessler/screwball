@@ -245,3 +245,61 @@ async fn move_out_of_turn_is_rejected() {
     let err: Value = serde_json::from_str(&body_string(mv).await).unwrap();
     assert!(err.get("error").is_some());
 }
+
+#[tokio::test]
+async fn join_sets_display_name_on_open_seat() {
+    let app = router().await;
+
+    // Host creates a game with one open human seat.
+    let home = app.clone().oneshot(get("/", None)).await.unwrap();
+    let host = sid_cookie(&home).unwrap();
+    let create = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/games")
+                .header(header::COOKIE, &host)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("your_name=Host&seat2=open"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let location = create
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    // A second visitor joins the open seat with a chosen name.
+    let visit = app.clone().oneshot(get("/", None)).await.unwrap();
+    let guest = sid_cookie(&visit).unwrap();
+    let join = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("{location}/join"))
+                .header(header::COOKIE, &guest)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("name=Guest"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(join.status(), StatusCode::SEE_OTHER);
+
+    // The guest is now seated at seat 1 with their chosen name.
+    let state = app
+        .clone()
+        .oneshot(get(&format!("{location}/state"), Some(&guest)))
+        .await
+        .unwrap();
+    let view: Value = serde_json::from_str(&body_string(state).await).unwrap();
+    assert_eq!(view["your_seat"], json!(1));
+    assert_eq!(view["seats"][1]["name"], "Guest");
+    assert_eq!(view["seats"][1]["open"], json!(false));
+}
