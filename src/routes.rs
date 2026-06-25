@@ -15,7 +15,7 @@ use crate::{
     game::{self, MoveError, SeatSpec},
     models::{Board, Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
-    session::{AuthUser, MaybeUser},
+    session::{ApiAuthUser, AuthUser, MaybeUser},
     view::GameView,
 };
 
@@ -214,7 +214,7 @@ pub struct PlacementReq {
 
 pub async fn submit_move(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    ApiAuthUser(user): ApiAuthUser,
     Path(id): Path<Uuid>,
     Json(request): Json<MoveRequest>,
 ) -> Response {
