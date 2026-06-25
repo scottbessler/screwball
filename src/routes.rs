@@ -1,5 +1,5 @@
 use axum::{
-    Extension, Json,
+    Json,
     extract::{Form, Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Redirect, Response},
@@ -15,14 +15,20 @@ use crate::{
     game::{self, MoveError, SeatSpec},
     models::{Board, Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
-    session::CurrentUser,
+    session::{AuthUser, MaybeUser},
     view::GameView,
 };
 
-pub async fn index(
-    State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
-) -> Html<String> {
+/// The viewer id used for redaction; logged-out visitors get the nil UUID,
+/// which never matches a real (v4) seat owner.
+fn viewer_id(user: Option<Uuid>) -> Uuid {
+    user.unwrap_or_else(Uuid::nil)
+}
+
+pub async fn index(State(state): State<AppState>, MaybeUser(user): MaybeUser) -> Html<String> {
+    let Some(user) = user else {
+        return Html(render::home_page(&[], None, None));
+    };
     let games = state.store.list().await;
     let mine: Vec<Game> = games
         .into_iter()
@@ -33,7 +39,12 @@ pub async fn index(
             })
         })
         .collect();
-    Html(render::home_page(&mine, user))
+    let display_name = state.users.get(user).await.map(|u| u.display_name);
+    Html(render::home_page(
+        &mine,
+        Some(user),
+        display_name.as_deref(),
+    ))
 }
 
 pub async fn healthcheck() -> &'static str {
@@ -54,13 +65,15 @@ pub struct CreateForm {
 
 pub async fn create_game(
     State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    AuthUser(user): AuthUser,
     Form(form): Form<CreateForm>,
 ) -> Result<Redirect, AppError> {
+    let account_name = state.users.get(user).await.map(|u| u.display_name);
     let your_name = form
         .your_name
         .map(|n| n.trim().to_string())
         .filter(|n| !n.is_empty())
+        .or(account_name)
         .unwrap_or_else(|| "You".to_string());
 
     let mut specs = vec![SeatSpec {
@@ -114,7 +127,7 @@ fn bot_spec(difficulty: Difficulty, name: &str) -> SeatSpec {
 
 pub async fn game_page(
     State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    MaybeUser(user): MaybeUser,
     Path(id): Path<Uuid>,
 ) -> Result<Html<String>, AppError> {
     let game = state
@@ -122,7 +135,7 @@ pub async fn game_page(
         .get(id)
         .await
         .ok_or_else(|| AppError::not_found("game not found"))?;
-    let view = GameView::for_viewer(&game, user);
+    let view = GameView::for_viewer(&game, viewer_id(user));
     let initial = serde_json::to_string(&view).map_err(AppError::internal)?;
     Ok(Html(render::game_page(&view, &initial)))
 }
@@ -134,14 +147,16 @@ pub struct JoinForm {
 
 pub async fn join_game(
     State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
     Form(form): Form<JoinForm>,
 ) -> Result<Redirect, AppError> {
+    let account_name = state.users.get(user).await.map(|u| u.display_name);
     let name = form
         .name
         .map(|n| n.trim().to_string())
-        .filter(|n| !n.is_empty());
+        .filter(|n| !n.is_empty())
+        .or(account_name);
     state
         .store
         .update(id, |game| {
@@ -169,7 +184,7 @@ pub async fn join_game(
 
 pub async fn game_state(
     State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    MaybeUser(user): MaybeUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<GameView>, AppError> {
     let game = state
@@ -177,7 +192,7 @@ pub async fn game_state(
         .get(id)
         .await
         .ok_or_else(|| AppError::not_found("game not found"))?;
-    Ok(Json(GameView::for_viewer(&game, user)))
+    Ok(Json(GameView::for_viewer(&game, viewer_id(user))))
 }
 
 #[derive(Deserialize)]
@@ -199,7 +214,7 @@ pub struct PlacementReq {
 
 pub async fn submit_move(
     State(state): State<AppState>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
     Json(request): Json<MoveRequest>,
 ) -> Response {

@@ -23,8 +23,26 @@ impl AppError {
         Self::NotFound(message.into())
     }
 
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::Unauthorized(message.into())
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::Conflict(message.into())
+    }
+
     pub fn internal(err: impl std::fmt::Display) -> Self {
         Self::Internal(err.to_string())
+    }
+
+    /// The HTTP status this error maps to.
+    pub fn status_code(&self) -> StatusCode {
+        self.status()
+    }
+
+    /// The human-readable detail message.
+    pub fn detail(&self) -> &str {
+        self.message()
     }
 
     fn status(&self) -> StatusCode {
