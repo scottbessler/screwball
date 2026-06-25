@@ -116,7 +116,9 @@ impl UserStore {
     }
 
     /// Mutate a user under the registry lock, persisting before the change
-    /// becomes visible in memory (mirrors `GameStore::update`).
+    /// becomes visible in memory (mirrors `GameStore::update`). Keeps the
+    /// username index consistent if the closure changes the username, and
+    /// fails the update if the new username is already claimed by someone else.
     pub async fn update<R>(&self, id: Uuid, f: impl FnOnce(&mut User) -> R) -> Result<R, AppError> {
         let mut guard = self.index.lock().await;
         let mut working = guard
@@ -124,8 +126,22 @@ impl UserStore {
             .get(&id)
             .ok_or_else(|| AppError::not_found("user not found"))?
             .clone();
+        let old_key = normalize_username(&working.username);
         let outcome = f(&mut working);
+        let new_key = normalize_username(&working.username);
+        if new_key != old_key
+            && guard
+                .by_username
+                .get(&new_key)
+                .is_some_and(|existing| *existing != id)
+        {
+            return Err(AppError::conflict("that username is already taken"));
+        }
         self.persist(&working).await?;
+        if new_key != old_key {
+            guard.by_username.remove(&old_key);
+            guard.by_username.insert(new_key, id);
+        }
         guard.by_id.insert(id, working);
         Ok(outcome)
     }
@@ -150,4 +166,62 @@ fn temp_path(path: &Path) -> PathBuf {
         .map(|d| d.as_nanos())
         .unwrap_or_default();
     path.with_extension(format!("json.tmp-{nanos}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch_dir() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        std::env::temp_dir().join(format!("screwball-users-{nanos}-{}", Uuid::new_v4()))
+    }
+
+    fn sample(username: &str) -> User {
+        User {
+            id: Uuid::new_v4(),
+            username: username.to_string(),
+            display_name: username.to_string(),
+            credentials: Vec::new(),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn update_keeps_username_index_consistent_on_rename() {
+        let store = UserStore::load(scratch_dir()).await.unwrap();
+        let user = sample("Alice");
+        let id = user.id;
+        store.insert(user).await.unwrap();
+
+        store
+            .update(id, |u| u.username = "Bob".to_string())
+            .await
+            .unwrap();
+
+        assert!(store.get_by_username("alice").await.is_none());
+        assert_eq!(store.get_by_username("BOB").await.unwrap().id, id);
+        assert!(store.username_taken("bob").await);
+    }
+
+    #[tokio::test]
+    async fn update_rejects_rename_to_taken_username() {
+        let store = UserStore::load(scratch_dir()).await.unwrap();
+        let alice = sample("alice");
+        let alice_id = alice.id;
+        store.insert(alice).await.unwrap();
+        store.insert(sample("bob")).await.unwrap();
+
+        let result = store
+            .update(alice_id, |u| u.username = "BOB".to_string())
+            .await;
+
+        assert!(result.is_err());
+        // The rejected rename leaves both index entries intact.
+        assert_eq!(store.get_by_username("alice").await.unwrap().id, alice_id);
+        assert!(store.username_taken("bob").await);
+    }
 }

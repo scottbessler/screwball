@@ -531,9 +531,21 @@ function App({ gameId, initial }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = null;
+      }
       if (!res.ok) {
-        setError(data.error || "Move rejected.");
+        if (res.status === 401) {
+          setError(
+            (data && data.error) ||
+              "Your session expired — reload the page and sign in again.",
+          );
+        } else {
+          setError((data && data.error) || "Move rejected.");
+        }
         return;
       }
       setGame(data);

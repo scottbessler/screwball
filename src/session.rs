@@ -1,8 +1,12 @@
 use std::convert::Infallible;
 
+use axum::Json;
 use axum::extract::{FromRef, FromRequestParts};
+use axum::http::StatusCode;
 use axum::http::request::Parts;
+use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::{Cookie, Key, SameSite, SignedCookieJar};
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -62,5 +66,32 @@ where
         read_user(&jar)
             .map(AuthUser)
             .ok_or_else(|| AppError::unauthorized("sign in with a passkey to do that"))
+    }
+}
+
+/// Like [`AuthUser`], but for JSON API endpoints: rejects with a JSON body
+/// (matching the `{ "error": ... }` shape used by move responses) so `fetch`
+/// clients can parse the failure instead of choking on an HTML error page.
+#[derive(Clone, Copy, Debug)]
+pub struct ApiAuthUser(pub Uuid);
+
+impl<S> FromRequestParts<S> for ApiAuthUser
+where
+    S: Send + Sync,
+    Key: FromRef<S>,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let jar = SignedCookieJar::<Key>::from_request_parts(parts, state)
+            .await
+            .expect("SignedCookieJar extraction is infallible");
+        read_user(&jar).map(ApiAuthUser).ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "sign in with a passkey to do that" })),
+            )
+                .into_response()
+        })
     }
 }

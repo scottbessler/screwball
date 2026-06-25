@@ -286,6 +286,20 @@ async fn move_without_auth_is_unauthorized() {
         .await
         .unwrap();
     assert_eq!(mv.status(), StatusCode::UNAUTHORIZED);
+    // The move endpoint is consumed by fetch(), so the rejection must be JSON
+    // (with an `error` field) rather than an HTML error page.
+    let content_type = mv
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(
+        content_type.starts_with("application/json"),
+        "expected JSON error, got content-type {content_type:?}"
+    );
+    let body: Value = serde_json::from_str(&body_string(mv).await).unwrap();
+    assert!(body.get("error").and_then(Value::as_str).is_some());
 }
 
 #[tokio::test]
