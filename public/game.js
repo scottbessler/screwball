@@ -16,6 +16,7 @@ const POINTS = {
 };
 
 const PREMIUM_LABEL = { dl: "DL", tl: "TL", dw: "DW", tw: "TW", none: "" };
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 function pointsFor(letter, isBlank) {
   return isBlank ? 0 : POINTS[letter] || 0;
@@ -37,6 +38,12 @@ function isYourTurn(game) {
   );
 }
 
+function rackSignature(game) {
+  return (game.your_rack || [])
+    .map((t) => (t.is_blank ? "?" : t.letter))
+    .join("");
+}
+
 // A board tile rendered for a committed letter or a pending placement.
 function Tile({ letter, isBlank, points, pending, onClick }) {
   const cls = ["tile-face", isBlank ? "tile-blank" : "", pending ? "pending" : ""]
@@ -48,7 +55,7 @@ function Tile({ letter, isBlank, points, pending, onClick }) {
   </span>`;
 }
 
-function Cell({ square, pending, row, col, onClick }) {
+function Cell({ square, pending, row, col, cursor, onClick }) {
   if (square.letter) {
     return html`<div class="cell tile">
       <${Tile}
@@ -69,14 +76,23 @@ function Cell({ square, pending, row, col, onClick }) {
     </div>`;
   }
   const premium = square.premium;
-  const cls = premium === "none" ? "cell" : `cell premium-${premium}`;
+  const isCursor = cursor && cursor.row === row && cursor.col === col;
+  const cls = [
+    "cell",
+    premium === "none" ? "" : `premium-${premium}`,
+    isCursor ? "cursor" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const star = row === CENTER && col === CENTER ? "★" : PREMIUM_LABEL[premium];
   return html`<div class=${cls} onClick=${onClick}>
-    <span class="premium-label">${star}</span>
+    ${isCursor
+      ? html`<span class="cursor-arrow">${cursor.dir === "down" ? "↓" : "→"}</span>`
+      : html`<span class="premium-label">${star}</span>`}
   </div>`;
 }
 
-function Board({ game, pending, onCellClick, onPendingClick }) {
+function Board({ game, pending, cursor, onCellClick, onPendingClick }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const cells = [];
   for (let row = 0; row < SIZE; row++) {
@@ -90,6 +106,7 @@ function Board({ game, pending, onCellClick, onPendingClick }) {
           pending=${place}
           row=${row}
           col=${col}
+          cursor=${cursor}
           onClick=${() =>
             place ? onPendingClick(place) : onCellClick(row, col)}
         />`,
@@ -99,7 +116,8 @@ function Board({ game, pending, onCellClick, onPendingClick }) {
   return html`<div class="board" role="grid">${cells}</div>`;
 }
 
-function Rack({ tiles, selected, mode, exchange, onSelect }) {
+function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
+  const dragId = useRef(null);
   return html`<div class="rack">
     ${tiles.map((tile) => {
       const picked =
@@ -115,6 +133,18 @@ function Rack({ tiles, selected, mode, exchange, onSelect }) {
         type="button"
         key=${tile.id}
         class=${cls}
+        draggable=${true}
+        onDragStart=${() => {
+          dragId.current = tile.id;
+        }}
+        onDragOver=${(e) => e.preventDefault()}
+        onDrop=${(e) => {
+          e.preventDefault();
+          if (dragId.current !== null && dragId.current !== tile.id) {
+            onReorder(dragId.current, tile.id);
+          }
+          dragId.current = null;
+        }}
         onClick=${() => onSelect(tile)}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
@@ -167,6 +197,80 @@ function MoveLog({ game }) {
   </ul>`;
 }
 
+function Results({ game }) {
+  const ranked = game.seats
+    .map((seat) => seat)
+    .slice()
+    .sort((a, b) => b.score - a.score);
+  const winners = new Set(game.winners);
+  return html`<div class="results card">
+    <h2>Game over</h2>
+    <ol class="results-list">
+      ${ranked.map(
+        (seat) => html`<li
+          key=${seat.index}
+          class=${winners.has(seat.index) ? "winner" : ""}
+        >
+          <span class="results-name">
+            ${seat.name}
+            ${winners.has(seat.index) ? html`<span class="badge">winner</span>` : null}
+          </span>
+          <span class="results-score">${seat.score}</span>
+        </li>`,
+      )}
+    </ol>
+    <a class="button" href="/">New game</a>
+  </div>`;
+}
+
+function BlankPicker({ onPick, onCancel }) {
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      } else if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        onPick(e.key.toUpperCase());
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onPick, onCancel]);
+
+  return html`<div class="modal-backdrop" onClick=${onCancel}>
+    <div class="modal" onClick=${(e) => e.stopPropagation()}>
+      <h2>Choose a letter</h2>
+      <p class="muted">Pick the letter this blank tile represents.</p>
+      <div class="letter-grid">
+        ${LETTERS.map(
+          (l) => html`<button
+            type="button"
+            key=${l}
+            class="letter-btn"
+            onClick=${() => onPick(l)}
+          >
+            ${l}
+          </button>`,
+        )}
+      </div>
+      <button type="button" class="button ghost" onClick=${onCancel}>
+        Cancel
+      </button>
+    </div>
+  </div>`;
+}
+
+function JoinForm({ gameId }) {
+  return html`<form class="join-form" method="post" action=${`/games/${gameId}/join`}>
+    <p class="muted">An open seat is waiting. Join to play.</p>
+    <label>Your name
+      <input type="text" name="name" maxlength="24" placeholder="You" />
+    </label>
+    <button type="submit" class="button">Join game</button>
+  </form>`;
+}
+
 function statusText(game) {
   if (game.status === "Lobby") return "Waiting to start";
   if (game.status === "Finished") {
@@ -188,10 +292,15 @@ function App({ gameId, initial }) {
   const [exchange, setExchange] = useState(() => new Set());
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const gameRef = useRef(game);
-  gameRef.current = game;
+  const [cursor, setCursor] = useState(null);
+  const [blankPrompt, setBlankPrompt] = useState(null);
+  const [rackOrder, setRackOrder] = useState(() =>
+    (initial.your_rack || []).map((_, i) => i),
+  );
 
   const yourTurn = isYourTurn(game);
+  const seated = game.your_seat !== null && game.your_seat !== undefined;
+  const hasOpenSeat = game.seats.some((s) => s.open);
 
   // Poll for opponent/bot moves while we are waiting.
   useEffect(() => {
@@ -209,16 +318,49 @@ function App({ gameId, initial }) {
     return () => clearInterval(timer);
   }, [gameId, yourTurn, game.status]);
 
+  // Reset the rack display order whenever the underlying rack changes.
+  const sig = rackSignature(game);
+  useEffect(() => {
+    setRackOrder((game.your_rack || []).map((_, i) => i));
+  }, [sig]);
+
   const usedRackIds = new Set(pending.map((p) => p.rackId));
-  const rack = (game.your_rack || [])
-    .map((tile, id) => ({ id, letter: tile.letter, is_blank: tile.is_blank }))
-    .filter((tile) => !usedRackIds.has(tile.id));
+  const rackTiles = game.your_rack || [];
+  const order =
+    rackOrder.length === rackTiles.length
+      ? rackOrder
+      : rackTiles.map((_, i) => i);
+  const rack = order
+    .filter((id) => !usedRackIds.has(id))
+    .map((id) => ({
+      id,
+      letter: rackTiles[id].letter,
+      is_blank: rackTiles[id].is_blank,
+    }));
 
   function reset() {
     setPending([]);
     setSelected(null);
     setMode("place");
     setExchange(new Set());
+    setCursor(null);
+  }
+
+  function occupiedAt(row, col, pend) {
+    if (game.board[idx(row, col)].letter) return true;
+    return pend.some((p) => p.row === row && p.col === col);
+  }
+
+  // First empty square at or after (row,col) travelling in `dir`.
+  function firstEmptyFrom(row, col, dir, pend) {
+    let r = row;
+    let c = col;
+    while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
+      if (!occupiedAt(r, c, pend)) return { row: r, col: c };
+      if (dir === "down") r += 1;
+      else c += 1;
+    }
+    return null;
   }
 
   function selectTile(tile) {
@@ -233,26 +375,143 @@ function App({ gameId, initial }) {
     setSelected((prev) => (prev === tile.id ? null : tile.id));
   }
 
-  function placeAt(row, col) {
-    if (!yourTurn || mode === "exchange" || selected === null) return;
-    if (game.board[idx(row, col)].letter) return;
-    const tile = (game.your_rack || [])[selected];
-    if (!tile) return;
-    let letter = tile.letter;
-    let isBlank = tile.is_blank;
-    if (isBlank) {
-      const choice = window.prompt("Letter for blank tile (A–Z):", "");
-      if (!choice) return;
-      const up = choice.trim().toUpperCase();
-      if (!/^[A-Z]$/.test(up)) {
-        setError("Blank tile needs a single letter A–Z.");
-        return;
-      }
-      letter = up;
+  function reorderRack(fromId, toId) {
+    const next = order.slice();
+    const from = next.indexOf(fromId);
+    const to = next.indexOf(toId);
+    if (from === -1 || to === -1) return;
+    next.splice(from, 1);
+    next.splice(to, 0, fromId);
+    setRackOrder(next);
+  }
+
+  function shuffleRack() {
+    const next = order.slice();
+    for (let i = next.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
     }
-    setPending([...pending, { row, col, letter, isBlank, rackId: selected }]);
+    setRackOrder(next);
+  }
+
+  // Click flow: a rack tile is selected, drop it on a board square.
+  function placeSelected(row, col) {
+    const tile = rackTiles[selected];
+    if (!tile) return;
+    if (tile.is_blank) {
+      setBlankPrompt({ row, col, rackId: selected });
+      return;
+    }
+    setPending([
+      ...pending,
+      { row, col, letter: tile.letter, isBlank: false, rackId: selected },
+    ]);
     setSelected(null);
   }
+
+  // Keyboard flow: manage the typing cursor on board clicks.
+  function moveCursor(row, col) {
+    if (cursor && cursor.row === row && cursor.col === col) {
+      setCursor({ row, col, dir: cursor.dir === "right" ? "down" : "right" });
+      return;
+    }
+    if (cursor && row === cursor.row && col === cursor.col + 1) {
+      setCursor({ ...cursor, dir: "right" });
+      return;
+    }
+    if (cursor && col === cursor.col && row === cursor.row + 1) {
+      setCursor({ ...cursor, dir: "down" });
+      return;
+    }
+    setCursor({ row, col, dir: "right" });
+  }
+
+  function onCellClick(row, col) {
+    if (!yourTurn || mode === "exchange") return;
+    setError(null);
+    if (game.board[idx(row, col)].letter) return;
+    if (selected !== null) {
+      placeSelected(row, col);
+      return;
+    }
+    moveCursor(row, col);
+  }
+
+  function typeLetter(letter) {
+    if (!cursor) {
+      setError("Click a square to start a word, then type.");
+      return;
+    }
+    const target = firstEmptyFrom(cursor.row, cursor.col, cursor.dir, pending);
+    if (!target) {
+      setError("No room to place a tile that way.");
+      return;
+    }
+    const exact = rack.find((t) => !t.is_blank && t.letter === letter);
+    const blank = rack.find((t) => t.is_blank);
+    const chosen = exact || blank;
+    if (!chosen) {
+      setError(`No "${letter}" tile (or blank) on your rack.`);
+      return;
+    }
+    const next = [
+      ...pending,
+      {
+        row: target.row,
+        col: target.col,
+        letter,
+        isBlank: !exact,
+        rackId: chosen.id,
+      },
+    ];
+    setPending(next);
+    const after =
+      cursor.dir === "down"
+        ? { r: target.row + 1, c: target.col }
+        : { r: target.row, c: target.col + 1 };
+    const advanced = firstEmptyFrom(after.r, after.c, cursor.dir, next);
+    setCursor(advanced ? { ...advanced, dir: cursor.dir } : cursor);
+  }
+
+  function backspace() {
+    if (!pending.length) return;
+    const last = pending[pending.length - 1];
+    setPending(pending.slice(0, -1));
+    setCursor({ row: last.row, col: last.col, dir: cursor ? cursor.dir : "right" });
+  }
+
+  // Type-to-place keyboard handling. Use a ref so the listener always sees
+  // fresh state without rebinding on every keystroke.
+  const keyHandler = useRef(null);
+  keyHandler.current = (e) => {
+    if (!yourTurn || mode !== "place" || blankPrompt) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (/^[a-zA-Z]$/.test(e.key)) {
+      e.preventDefault();
+      typeLetter(e.key.toUpperCase());
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      backspace();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      submitPlay();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setPending([]);
+      setSelected(null);
+      setCursor(null);
+      setError(null);
+    }
+  };
+  useEffect(() => {
+    function onKey(e) {
+      if (keyHandler.current) keyHandler.current(e);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   function recallTile(place) {
     setPending(pending.filter((p) => p.rackId !== place.rackId));
@@ -303,94 +562,114 @@ function App({ gameId, initial }) {
       return;
     }
     const tiles = [...exchange].map((id) => {
-      const tile = game.your_rack[id];
+      const tile = rackTiles[id];
       return tile.is_blank ? "?" : tile.letter;
     });
     postMove({ kind: "exchange", tiles });
   }
 
   const controlsDisabled = !yourTurn || busy;
+  const finished = game.status === "Finished";
 
   return html`<div class="game">
     <h1 class="status">${statusText(game)}</h1>
+    ${finished ? html`<${Results} game=${game} />` : null}
     <div class="game-layout">
       <div class="board-wrap">
         <${Board}
           game=${game}
           pending=${pending}
-          onCellClick=${placeAt}
+          cursor=${yourTurn && mode === "place" ? cursor : null}
+          onCellClick=${onCellClick}
           onPendingClick=${recallTile}
         />
-        <div class="rack-area">
-          <${Rack}
-            tiles=${rack}
-            selected=${selected}
-            mode=${mode}
-            exchange=${exchange}
-            onSelect=${selectTile}
-          />
-          ${error ? html`<p class="move-error">${error}</p>` : null}
-          <div class="controls">
-            ${mode === "place"
-              ? html`<button
-                    type="button"
-                    class="button"
-                    disabled=${controlsDisabled}
-                    onClick=${submitPlay}
-                  >
-                    Play word
-                  </button>
-                  <button
-                    type="button"
-                    class="button ghost"
-                    disabled=${busy || !pending.length}
-                    onClick=${() => setPending([])}
-                  >
-                    Recall
-                  </button>
-                  <button
-                    type="button"
-                    class="button ghost"
-                    disabled=${controlsDisabled}
-                    onClick=${() => {
-                      reset();
-                      setMode("exchange");
-                    }}
-                  >
-                    Exchange…
-                  </button>
-                  <button
-                    type="button"
-                    class="button ghost"
-                    disabled=${controlsDisabled}
-                    onClick=${() => postMove({ kind: "pass" })}
-                  >
-                    Pass
-                  </button>`
-              : html`<button
-                    type="button"
-                    class="button"
-                    disabled=${controlsDisabled}
-                    onClick=${submitExchange}
-                  >
-                    Confirm exchange
-                  </button>
-                  <button
-                    type="button"
-                    class="button ghost"
-                    disabled=${busy}
-                    onClick=${reset}
-                  >
-                    Cancel
-                  </button>`}
-          </div>
-          ${mode === "place" && yourTurn
-            ? html`<p class="muted hint">
-                Tap a rack tile, then tap a board square to place it. Tap a
-                placed tile to take it back.
-              </p>`
-            : null}
-        </div>
+        ${!seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null}
+        ${seated && !finished
+          ? html`<div class="rack-area">
+              <${Rack}
+                tiles=${rack}
+                selected=${selected}
+                mode=${mode}
+                exchange=${exchange}
+                onSelect=${selectTile}
+                onReorder=${reorderRack}
+              />
+              ${error ? html`<p class="move-error">${error}</p>` : null}
+              <div class="controls">
+                ${mode === "place"
+                  ? html`<button
+                        type="button"
+                        class="button"
+                        disabled=${controlsDisabled}
+                        onClick=${submitPlay}
+                      >
+                        Play word
+                      </button>
+                      <button
+                        type="button"
+                        class="button ghost"
+                        disabled=${busy || !pending.length}
+                        onClick=${() => {
+                          setPending([]);
+                          setCursor(null);
+                        }}
+                      >
+                        Recall
+                      </button>
+                      <button
+                        type="button"
+                        class="button ghost"
+                        disabled=${busy}
+                        onClick=${shuffleRack}
+                      >
+                        Shuffle
+                      </button>
+                      <button
+                        type="button"
+                        class="button ghost"
+                        disabled=${controlsDisabled}
+                        onClick=${() => {
+                          reset();
+                          setMode("exchange");
+                        }}
+                      >
+                        Exchange…
+                      </button>
+                      <button
+                        type="button"
+                        class="button ghost"
+                        disabled=${controlsDisabled}
+                        onClick=${() => postMove({ kind: "pass" })}
+                      >
+                        Pass
+                      </button>`
+                  : html`<button
+                        type="button"
+                        class="button"
+                        disabled=${controlsDisabled}
+                        onClick=${submitExchange}
+                      >
+                        Confirm exchange
+                      </button>
+                      <button
+                        type="button"
+                        class="button ghost"
+                        disabled=${busy}
+                        onClick=${reset}
+                      >
+                        Cancel
+                      </button>`}
+              </div>
+              ${mode === "place" && yourTurn
+                ? html`<p class="muted hint">
+                    Click a square to start a word, then type letters (click an
+                    adjacent square to set direction, or click again to toggle
+                    →/↓). Or tap a rack tile, then a square. Drag rack tiles to
+                    reorder; Shuffle to randomize. Enter plays, Esc clears.
+                  </p>`
+                : null}
+            </div>`
+          : null}
       </div>
       <aside class="sidebar">
         <${Scoreboard} game=${game} />
@@ -398,6 +677,25 @@ function App({ gameId, initial }) {
         <${MoveLog} game=${game} />
       </aside>
     </div>
+    ${blankPrompt
+      ? html`<${BlankPicker}
+          onPick=${(letter) => {
+            setPending([
+              ...pending,
+              {
+                row: blankPrompt.row,
+                col: blankPrompt.col,
+                letter,
+                isBlank: true,
+                rackId: blankPrompt.rackId,
+              },
+            ]);
+            setBlankPrompt(null);
+            setSelected(null);
+          }}
+          onCancel=${() => setBlankPrompt(null)}
+        />`
+      : null}
   </div>`;
 }
 
