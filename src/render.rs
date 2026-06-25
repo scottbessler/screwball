@@ -199,7 +199,12 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
     )
 }
 
-pub fn game_page(view: &GameView, initial_json: &str, other_games: &[GameSummary]) -> String {
+pub fn game_page(
+    view: &GameView,
+    initial_json: &str,
+    other_games: &[GameSummary],
+    logged_in: bool,
+) -> String {
     let board = render_board_squares(&view.board);
     let scoreboard = render_scoreboard(view);
     let log = render_move_log(view);
@@ -211,8 +216,18 @@ pub fn game_page(view: &GameView, initial_json: &str, other_games: &[GameSummary
     let initial_json = initial_json.replace("</", "<\\/");
     let initial_json = initial_json.as_str();
     let head = r#"<script type="module" src="/public/game.js" defer></script>"#;
+    let sign_in = if logged_in {
+        String::new()
+    } else {
+        r#"<section class="card login-cta">
+  <p class="muted">Sign in to join an open seat and play.</p>
+  <a class="button" href="/">Sign in to play</a>
+</section>"#
+            .to_string()
+    };
     let body = format!(
-        r#"<section class="card">
+        r#"{sign_in}
+<section class="card">
   <div id="ssr-fallback">
     {status_banner}
     <div class="game-layout">

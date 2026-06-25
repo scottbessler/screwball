@@ -139,7 +139,12 @@ pub async fn game_page(
         Some(user) => my_game_summaries(&state, user, Some(id)).await,
         None => Vec::new(),
     };
-    Ok(Html(render::game_page(&view, &initial, &other_games)))
+    Ok(Html(render::game_page(
+        &view,
+        &initial,
+        &other_games,
+        user.is_some(),
+    )))
 }
 
 /// The viewer's games (newest-first), optionally excluding one game id, each
