@@ -26,6 +26,60 @@ function idx(row, col) {
   return row * SIZE + col;
 }
 
+// Live score of the pending placements. Mirrors score logic in src/game.rs
+// (main run + cross words + 50 bingo). No dict check — server validates words.
+function previewScore(game, pending) {
+  if (!pending.length) return null;
+  const placed = new Map(pending.map((p) => [idx(p.row, p.col), p]));
+  const at = (r, c) => {
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return null;
+    const sq = game.board[idx(r, c)];
+    if (sq.letter) return { letter: sq.letter, isBlank: sq.is_blank, premium: sq.premium, placed: false };
+    const p = placed.get(idx(r, c));
+    return p ? { letter: p.letter, isBlank: p.isBlank, premium: sq.premium, placed: true } : null;
+  };
+  const run = ([sr, sc], [dr, dc]) => {
+    let r = sr, c = sc;
+    while (at(r - dr, c - dc)) { r -= dr; c -= dc; }
+    const cells = [];
+    while (at(r, c)) { cells.push([r, c]); r += dr; c += dc; }
+    return cells;
+  };
+  const multiCol = pending.some((p) => p.col !== pending[0].col);
+  const multiRow = pending.some((p) => p.row !== pending[0].row);
+  const [main, cross] = multiCol
+    ? [[0, 1], [1, 0]]
+    : multiRow
+      ? [[1, 0], [0, 1]]
+      : [[0, 1], [1, 0]];
+  const words = [];
+  const head = [pending[0].row, pending[0].col];
+  const m = run(head, main);
+  if (m.length >= 2) words.push(m);
+  for (const p of pending) {
+    const x = run([p.row, p.col], cross);
+    if (x.length >= 2) words.push(x);
+  }
+  let total = 0;
+  for (const cells of words) {
+    let ws = 0, wm = 1;
+    for (const [r, c] of cells) {
+      const t = at(r, c);
+      let v = pointsFor(t.letter, t.isBlank);
+      if (t.placed) {
+        if (t.premium === "dl") v *= 2;
+        else if (t.premium === "tl") v *= 3;
+        else if (t.premium === "dw") wm *= 2;
+        else if (t.premium === "tw") wm *= 3;
+      }
+      ws += v;
+    }
+    total += ws * wm;
+  }
+  if (pending.length === 7) total += 50;
+  return total;
+}
+
 function isActive(game) {
   return game.status === "Active";
 }
@@ -134,8 +188,11 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
         key=${tile.id}
         class=${cls}
         draggable=${true}
-        onDragStart=${() => {
+        onDragStart=${(e) => {
           dragId.current = tile.id;
+          // Firefox/Safari won't fire drop unless dataTransfer is set.
+          e.dataTransfer.setData("text/plain", String(tile.id));
+          e.dataTransfer.effectAllowed = "move";
         }}
         onDragOver=${(e) => e.preventDefault()}
         onDrop=${(e) => {
@@ -663,7 +720,7 @@ function App({ gameId, initial }) {
                         disabled=${controlsDisabled}
                         onClick=${submitPlay}
                       >
-                        Play word
+                        Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
                       </button>
                       <button
                         type="button"
