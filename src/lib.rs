@@ -1,4 +1,5 @@
 pub mod app;
+pub mod auth;
 pub mod bag;
 pub mod board;
 pub mod bot;
@@ -10,4 +11,5 @@ pub mod render;
 pub mod routes;
 pub mod session;
 pub mod store;
+pub mod users;
 pub mod view;

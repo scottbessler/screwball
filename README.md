@@ -42,6 +42,20 @@ to any newline-separated word list:
 DICTIONARY_PATH=/path/to/words.txt cargo run
 ```
 
+### Authentication
+
+Players sign in with passkeys (WebAuthn) — no passwords. Configure the relying
+party and session signing via environment variables:
+
+| Variable         | Default                   | Purpose                                                            |
+| ---------------- | ------------------------- | ------------------------------------------------------------------ |
+| `RP_ID`          | `localhost`               | WebAuthn relying-party id (the registrable domain).                |
+| `RP_ORIGIN`      | `http://localhost:8080`   | Full origin browsers connect from; must match `RP_ID`.             |
+| `SESSION_SECRET` | _(ephemeral)_             | ≥64-byte secret signing the session cookie. Unset ⇒ a random key is used and sessions reset on restart. |
+
+In production set `RP_ID`/`RP_ORIGIN` to your real domain (e.g. `RP_ID=play.example.com`,
+`RP_ORIGIN=https://play.example.com`) and a stable `SESSION_SECRET`.
+
 ## Checks
 
 ```sh

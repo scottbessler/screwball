@@ -1,46 +1,66 @@
-use axum::{
-    extract::Request,
-    http::{HeaderValue, header},
-    middleware::Next,
-    response::Response,
-};
+use std::convert::Infallible;
+
+use axum::extract::{FromRef, FromRequestParts};
+use axum::http::request::Parts;
+use axum_extra::extract::cookie::{Cookie, Key, SameSite, SignedCookieJar};
 use uuid::Uuid;
 
-/// The visitor's identity, derived from the `sid` cookie. Until passkey auth
-/// lands this is simply a stable per-browser id.
-#[derive(Clone, Copy, Debug)]
-pub struct CurrentUser(pub Uuid);
+use crate::error::AppError;
 
-const COOKIE_NAME: &str = "sid";
-const ONE_YEAR_SECONDS: i64 = 60 * 60 * 24 * 365;
+/// Name of the signed cookie that records the logged-in user's id.
+pub const SESSION_COOKIE: &str = "sid";
 
-/// Middleware that ensures every request carries a `CurrentUser`, minting and
-/// setting a new `sid` cookie when the visitor has none.
-pub async fn attach_session(mut request: Request, next: Next) -> Response {
-    let existing = read_sid(&request);
-    let user = existing.unwrap_or_else(Uuid::new_v4);
-    request.extensions_mut().insert(CurrentUser(user));
-
-    let mut response = next.run(request).await;
-    if existing.is_none() {
-        let cookie = format!(
-            "{COOKIE_NAME}={user}; Path=/; HttpOnly; SameSite=Lax; Max-Age={ONE_YEAR_SECONDS}"
-        );
-        if let Ok(value) = HeaderValue::from_str(&cookie) {
-            response.headers_mut().append(header::SET_COOKIE, value);
-        }
-    }
-    response
+/// Build the signed session cookie recording the authenticated user.
+pub fn session_cookie(user: Uuid) -> Cookie<'static> {
+    Cookie::build((SESSION_COOKIE, user.to_string()))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .permanent()
+        .build()
 }
 
-fn read_sid(request: &Request) -> Option<Uuid> {
-    let cookies = request.headers().get(header::COOKIE)?.to_str().ok()?;
-    cookies.split(';').find_map(|pair| {
-        let (name, value) = pair.trim().split_once('=')?;
-        if name == COOKIE_NAME {
-            Uuid::parse_str(value).ok()
-        } else {
-            None
-        }
-    })
+fn read_user(jar: &SignedCookieJar) -> Option<Uuid> {
+    jar.get(SESSION_COOKIE)
+        .and_then(|cookie| Uuid::parse_str(cookie.value()).ok())
+}
+
+/// The authenticated visitor. Rejects with 401 when no valid session is present.
+#[derive(Clone, Copy, Debug)]
+pub struct AuthUser(pub Uuid);
+
+/// The visitor's identity if they are signed in, or `None` for a guest.
+#[derive(Clone, Copy, Debug)]
+pub struct MaybeUser(pub Option<Uuid>);
+
+impl<S> FromRequestParts<S> for MaybeUser
+where
+    S: Send + Sync,
+    Key: FromRef<S>,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let jar = SignedCookieJar::<Key>::from_request_parts(parts, state)
+            .await
+            .expect("SignedCookieJar extraction is infallible");
+        Ok(MaybeUser(read_user(&jar)))
+    }
+}
+
+impl<S> FromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+    Key: FromRef<S>,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let jar = SignedCookieJar::<Key>::from_request_parts(parts, state)
+            .await
+            .expect("SignedCookieJar extraction is infallible");
+        read_user(&jar)
+            .map(AuthUser)
+            .ok_or_else(|| AppError::unauthorized("sign in with a passkey to do that"))
+    }
 }

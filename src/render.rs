@@ -68,7 +68,14 @@ pub fn error_page(title: &str, message: &str) -> String {
     )
 }
 
-pub fn home_page(games: &[Game], current: Uuid) -> String {
+pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&str>) -> String {
+    let Some(current) = current else {
+        return layout_with_head(
+            "Screwball",
+            &signed_out_panel(),
+            r#"<script type="module" src="/public/auth.js" defer></script>"#,
+        );
+    };
     let new_game = new_game_form();
     let list = if games.is_empty() {
         "<p class=\"muted\">No games yet. Create one to get started.</p>".to_string()
@@ -79,10 +86,19 @@ pub fn home_page(games: &[Game], current: Uuid) -> String {
             .collect();
         format!("<ul class=\"game-list\">{rows}</ul>")
     };
+    let greeting = display_name
+        .map(|name| format!("Signed in as <strong>{}</strong>", escape(name)))
+        .unwrap_or_else(|| "Signed in".to_string());
     layout(
         "Screwball",
         &format!(
-            r#"<section class="card">
+            r#"<section class="card account">
+  <p class="muted">{greeting}</p>
+  <form method="post" action="/auth/logout">
+    <button type="submit" class="button button-secondary">Sign out</button>
+  </form>
+</section>
+<section class="card">
   <h1>New game</h1>
   {new_game}
 </section>
@@ -92,6 +108,36 @@ pub fn home_page(games: &[Game], current: Uuid) -> String {
 </section>"#
         ),
     )
+}
+
+/// The signed-out landing panel: passkey register + sign-in forms, wired up by
+/// `public/auth.js`.
+fn signed_out_panel() -> String {
+    let body = r#"<section class="card">
+  <h1>Welcome to Screwball</h1>
+  <p class="muted">A classic Scrabble-style word game. Sign in with a passkey to play — no passwords.</p>
+  <p id="auth-error" class="auth-error" role="alert" hidden></p>
+  <div class="auth-grid">
+    <form id="login-form" class="form auth-form">
+      <h2>Sign in</h2>
+      <label>Username
+        <input type="text" name="username" autocomplete="username webauthn" maxlength="32" required>
+      </label>
+      <button type="submit" class="button">Sign in with passkey</button>
+    </form>
+    <form id="register-form" class="form auth-form">
+      <h2>Create account</h2>
+      <label>Username
+        <input type="text" name="username" autocomplete="username" maxlength="32" required>
+      </label>
+      <label>Display name <span class="muted">(optional)</span>
+        <input type="text" name="display_name" maxlength="48">
+      </label>
+      <button type="submit" class="button">Register a passkey</button>
+    </form>
+  </div>
+</section>"#;
+    body.to_string()
 }
 
 fn new_game_form() -> String {

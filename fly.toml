@@ -14,6 +14,9 @@ kill_timeout = '5s'
 [env]
   DATA_PATH = '/data'
   PORT = '8080'
+  RP_ID = 'screwball.fly.dev'
+  RP_ORIGIN = 'https://screwball.fly.dev'
+  # SESSION_SECRET is set as a Fly secret (fly secrets set SESSION_SECRET=...).
 
 [processes]
   app = '/app/screwball'
