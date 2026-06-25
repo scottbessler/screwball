@@ -16,7 +16,7 @@ use crate::{
     models::{Board, Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
     session::{ApiAuthUser, AuthUser, MaybeUser},
-    view::GameView,
+    view::{GameSummary, GameView},
 };
 
 /// The viewer id used for redaction; logged-out visitors get the nil UUID,
@@ -57,7 +57,6 @@ pub async fn demo() -> Html<String> {
 
 #[derive(Deserialize)]
 pub struct CreateForm {
-    your_name: Option<String>,
     seat2: Option<String>,
     seat3: Option<String>,
     seat4: Option<String>,
@@ -68,12 +67,11 @@ pub async fn create_game(
     AuthUser(user): AuthUser,
     Form(form): Form<CreateForm>,
 ) -> Result<Redirect, AppError> {
-    let account_name = state.users.get(user).await.map(|u| u.display_name);
-    let your_name = form
-        .your_name
-        .map(|n| n.trim().to_string())
-        .filter(|n| !n.is_empty())
-        .or(account_name)
+    let your_name = state
+        .users
+        .get(user)
+        .await
+        .map(|u| u.display_name)
         .unwrap_or_else(|| "You".to_string());
 
     let mut specs = vec![SeatSpec {
@@ -137,26 +135,49 @@ pub async fn game_page(
         .ok_or_else(|| AppError::not_found("game not found"))?;
     let view = GameView::for_viewer(&game, viewer_id(user));
     let initial = serde_json::to_string(&view).map_err(AppError::internal)?;
-    Ok(Html(render::game_page(&view, &initial)))
+    let other_games = match user {
+        Some(user) => my_game_summaries(&state, user, Some(id)).await,
+        None => Vec::new(),
+    };
+    Ok(Html(render::game_page(&view, &initial, &other_games)))
 }
 
-#[derive(Deserialize)]
-pub struct JoinForm {
-    name: Option<String>,
+/// The viewer's games (newest-first), optionally excluding one game id, each
+/// flagged with whether it is the viewer's turn.
+async fn my_game_summaries(
+    state: &AppState,
+    user: Uuid,
+    exclude: Option<Uuid>,
+) -> Vec<GameSummary> {
+    state
+        .store
+        .list()
+        .await
+        .iter()
+        .filter(|game| Some(game.id) != exclude)
+        .filter_map(|game| GameSummary::for_viewer(game, user))
+        .collect()
+}
+
+/// JSON list of the signed-in viewer's games, used by the game page to keep the
+/// "your other games" panel (and its your-turn flags) fresh while you play.
+pub async fn my_games(
+    State(state): State<AppState>,
+    MaybeUser(user): MaybeUser,
+) -> Json<Vec<GameSummary>> {
+    let summaries = match user {
+        Some(user) => my_game_summaries(&state, user, None).await,
+        None => Vec::new(),
+    };
+    Json(summaries)
 }
 
 pub async fn join_game(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
-    Form(form): Form<JoinForm>,
 ) -> Result<Redirect, AppError> {
-    let account_name = state.users.get(user).await.map(|u| u.display_name);
-    let name = form
-        .name
-        .map(|n| n.trim().to_string())
-        .filter(|n| !n.is_empty())
-        .or(account_name);
+    let name = state.users.get(user).await.map(|u| u.display_name);
     state
         .store
         .update(id, |game| {

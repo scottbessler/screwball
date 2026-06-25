@@ -8,7 +8,12 @@ use axum::{
 };
 use axum_extra::extract::cookie::Key;
 use cookie::{Cookie as RawCookie, CookieJar};
-use screwball::{app, dict::Dictionary, store::GameStore, users::UserStore};
+use screwball::{
+    app,
+    dict::Dictionary,
+    store::GameStore,
+    users::{User, UserStore},
+};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -18,6 +23,7 @@ use uuid::Uuid;
 struct TestApp {
     router: Router,
     key: Key,
+    users: Arc<UserStore>,
 }
 
 async fn test_app() -> TestApp {
@@ -36,13 +42,14 @@ async fn test_app() -> TestApp {
     let state = app::AppState {
         dict,
         store,
-        users,
+        users: users.clone(),
         webauthn,
         key: key.clone(),
     };
     TestApp {
         router: app::router(state),
         key,
+        users,
     }
 }
 
@@ -55,6 +62,22 @@ impl TestApp {
     fn new_session(&self) -> (Uuid, String) {
         let user = Uuid::new_v4();
         (user, self.cookie_for(user))
+    }
+
+    /// Register a user with the given display name and return their id plus a
+    /// signed session cookie. Seat names now come from the account, so tests
+    /// that care about a player's name register them first.
+    async fn register(&self, username: &str, display_name: &str) -> (Uuid, String) {
+        let user = User {
+            id: Uuid::new_v4(),
+            username: username.to_string(),
+            display_name: display_name.to_string(),
+            credentials: Vec::new(),
+            created_at: chrono::Utc::now(),
+        };
+        let id = user.id;
+        self.users.insert(user).await.unwrap();
+        (id, self.cookie_for(id))
     }
 
     /// Build the signed `sid=...` cookie header value for a given user.
@@ -161,7 +184,7 @@ async fn create_game_requires_auth() {
     let app = test_app().await;
     let response = app
         .router()
-        .oneshot(post_form("/games", None, "your_name=Tester&seat2=hard"))
+        .oneshot(post_form("/games", None, "seat2=hard"))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -175,11 +198,7 @@ async fn create_join_and_play_flow() {
     // Create a game: us + a hard bot.
     let create = app
         .router()
-        .oneshot(post_form(
-            "/games",
-            Some(&cookie),
-            "your_name=Tester&seat2=hard",
-        ))
+        .oneshot(post_form("/games", Some(&cookie), "seat2=hard"))
         .await
         .unwrap();
     assert_eq!(create.status(), StatusCode::SEE_OTHER);
@@ -229,17 +248,13 @@ async fn create_join_and_play_flow() {
 #[tokio::test]
 async fn game_page_escapes_script_in_embedded_state() {
     let app = test_app().await;
-    let (_user, cookie) = app.new_session();
+    // The seat name comes from the account display name, which here contains
+    // "</script>" and must not break out of the embedded JSON <script> element.
+    let (_user, cookie) = app.register("scripter", "</script>").await;
 
-    // A player name containing "</script>" must not break out of the embedded
-    // JSON <script> element on the game page.
     let create = app
         .router()
-        .oneshot(post_form(
-            "/games",
-            Some(&cookie),
-            "your_name=%3C%2Fscript%3E&seat2=easy",
-        ))
+        .oneshot(post_form("/games", Some(&cookie), "seat2=easy"))
         .await
         .unwrap();
     let location = location_of(&create);
@@ -336,18 +351,14 @@ async fn join_requires_auth() {
     let (_host, host_cookie) = app.new_session();
     let create = app
         .router()
-        .oneshot(post_form(
-            "/games",
-            Some(&host_cookie),
-            "your_name=Host&seat2=open",
-        ))
+        .oneshot(post_form("/games", Some(&host_cookie), "seat2=open"))
         .await
         .unwrap();
     let location = location_of(&create);
 
     let join = app
         .router()
-        .oneshot(post_form(&format!("{location}/join"), None, "name=Guest"))
+        .oneshot(post_form(&format!("{location}/join"), None, ""))
         .await
         .unwrap();
     assert_eq!(join.status(), StatusCode::UNAUTHORIZED);
@@ -356,34 +367,30 @@ async fn join_requires_auth() {
 #[tokio::test]
 async fn join_sets_display_name_on_open_seat() {
     let app = test_app().await;
-    let (_host, host_cookie) = app.new_session();
-    let (_guest, guest_cookie) = app.new_session();
+    let (_host, host_cookie) = app.register("host", "Host").await;
+    let (_guest, guest_cookie) = app.register("guest", "Guest").await;
 
     // Host creates a game with one open human seat.
     let create = app
         .router()
-        .oneshot(post_form(
-            "/games",
-            Some(&host_cookie),
-            "your_name=Host&seat2=open",
-        ))
+        .oneshot(post_form("/games", Some(&host_cookie), "seat2=open"))
         .await
         .unwrap();
     let location = location_of(&create);
 
-    // A second visitor joins the open seat with a chosen name.
+    // A second visitor joins the open seat; their account display name fills it.
     let join = app
         .router()
         .oneshot(post_form(
             &format!("{location}/join"),
             Some(&guest_cookie),
-            "name=Guest",
+            "",
         ))
         .await
         .unwrap();
     assert_eq!(join.status(), StatusCode::SEE_OTHER);
 
-    // The guest is now seated at seat 1 with their chosen name.
+    // The guest is now seated at seat 1 with their account display name.
     let state = app
         .router()
         .oneshot(get(&format!("{location}/state"), Some(&guest_cookie)))

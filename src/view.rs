@@ -104,6 +104,36 @@ impl GameView {
     }
 }
 
+/// A compact summary of a game the viewer is seated in, for the "your other
+/// games" panel. `your_turn` highlights games waiting on the viewer.
+#[derive(Serialize)]
+pub struct GameSummary {
+    pub id: Uuid,
+    pub players: Vec<String>,
+    pub status: &'static str,
+    pub your_turn: bool,
+}
+
+impl GameSummary {
+    /// Build a summary for `viewer`, or `None` when they aren't seated.
+    pub fn for_viewer(game: &Game, viewer: Uuid) -> Option<Self> {
+        let your_seat = game
+            .seats
+            .iter()
+            .position(|seat| seat_user(seat) == Some(viewer))?;
+        Some(Self {
+            id: game.id,
+            players: game.seats.iter().map(|seat| seat.name.clone()).collect(),
+            status: match game.status {
+                GameStatus::Lobby => "lobby",
+                GameStatus::Active => "active",
+                GameStatus::Finished => "finished",
+            },
+            your_turn: game.status == GameStatus::Active && game.turn == your_seat,
+        })
+    }
+}
+
 fn seat_user(seat: &Seat) -> Option<Uuid> {
     match seat.kind {
         SeatKind::Human { user_id } => user_id,
