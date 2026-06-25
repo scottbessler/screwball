@@ -1,38 +1,50 @@
-app = "screwball"
-kill_signal = "SIGINT"
-kill_timeout = 5
+# fly.toml app configuration file generated for screwball on 2026-06-25T19:16:49Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'screwball'
+primary_region = 'sjc'
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
 
 [build]
-dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-DATA_PATH = "/data"
-PORT = "8080"
+  DATA_PATH = '/data'
+  PORT = '8080'
 
 [processes]
-app = "/app/screwball"
+  app = '/app/screwball'
 
-[mounts]
-source = "data"
-destination = "/data"
+[[mounts]]
+  source = 'data'
+  destination = '/data'
 
 [http_service]
-internal_port = 8080
-force_https = true
-auto_stop_machines = false
-auto_start_machines = true
-min_machines_running = 1
-processes = ["app"]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
 
-[http_service.concurrency]
-type = "connections"
-soft_limit = 20
-hard_limit = 25
+  [http_service.concurrency]
+    type = 'connections'
+    hard_limit = 25
+    soft_limit = 20
 
-[[http_service.checks]]
-interval = "10s"
-grace_period = "5s"
-method = "GET"
-path = "/healthcheck"
-protocol = "http"
-timeout = "2s"
+  [[http_service.checks]]
+    interval = '10s'
+    timeout = '2s'
+    grace_period = '5s'
+    method = 'GET'
+    path = '/healthcheck'
+    protocol = 'http'
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
