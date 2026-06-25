@@ -139,7 +139,7 @@ pub enum GameStatus {
 }
 
 /// A single tile placement within a play.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Placement {
     pub position: Position,
     /// The letter that lands on the board.
