@@ -151,9 +151,20 @@ pub struct Placement {
 /// What a seat did on its turn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveKind {
-    Play { placements: Vec<Placement> },
-    Exchange { tiles: Vec<Tile> },
+    Play {
+        placements: Vec<Placement>,
+    },
+    Exchange {
+        tiles: Vec<Tile>,
+    },
     Pass,
+    /// End-of-game score settlement: a seat loses the value of its leftover
+    /// `tiles` (negative `delta`), or the seat that went out gains the sum of
+    /// everyone else's leftovers (positive `delta`, empty `tiles`).
+    EndAdjustment {
+        delta: i32,
+        tiles: Vec<Tile>,
+    },
 }
 
 /// A completed, scored move recorded in the game log.
