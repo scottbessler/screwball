@@ -216,6 +216,48 @@ body {
   color: var(--muted);
 }
 
+/* "Your other games" panel on the game page sidebar. */
+.other-games {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.other-games h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.4rem;
+}
+
+.other-games-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.other-games-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.other-games-list a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.other-games-list li.your-turn {
+  font-weight: 600;
+}
+
+.badge-turn {
+  background: var(--accent);
+}
+
 .form {
   display: flex;
   flex-direction: column;

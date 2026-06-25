@@ -269,11 +269,50 @@ function BlankPicker({ onPick, onCancel }) {
 function JoinForm({ gameId }) {
   return html`<form class="join-form" method="post" action=${`/games/${gameId}/join`}>
     <p class="muted">An open seat is waiting. Join to play.</p>
-    <label>Your name
-      <input type="text" name="name" maxlength="24" placeholder="You" />
-    </label>
     <button type="submit" class="button">Join game</button>
   </form>`;
+}
+
+// The "your other games" panel. Polls /api/my-games so the your-turn flags stay
+// fresh while you play, and excludes the game currently being viewed.
+function OtherGames({ gameId }) {
+  const [games, setGames] = useState(null);
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        const res = await fetch("/api/my-games");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active) setGames(data);
+      } catch (_) {
+        /* transient network error; keep the last list */
+      }
+    }
+    load();
+    const timer = setInterval(load, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  if (!games) return null;
+  const others = games.filter((g) => g.id !== gameId);
+  if (!others.length) return null;
+  return html`<div class="other-games">
+    <h2>Your other games</h2>
+    <ul class="other-games-list">
+      ${others.map(
+        (g) => html`<li key=${g.id} class=${g.your_turn ? "your-turn" : ""}>
+          <a href=${`/games/${g.id}`}>${g.players.join(" vs ")}</a>
+          ${g.your_turn
+            ? html`<span class="badge badge-turn">your turn</span>`
+            : html`<span class="muted">${g.status}</span>`}
+        </li>`,
+      )}
+    </ul>
+  </div>`;
 }
 
 function statusText(game) {
@@ -696,6 +735,7 @@ function App({ gameId, initial }) {
         <${Scoreboard} game=${game} />
         <p class="muted">Tiles in bag: ${game.bag_count}</p>
         <${MoveLog} game=${game} />
+        <${OtherGames} gameId=${gameId} />
       </aside>
     </div>
     ${blankPrompt

@@ -1,7 +1,7 @@
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
-use crate::view::{GameView, SquareView, premium_code};
+use crate::view::{GameSummary, GameView, SquareView, premium_code};
 
 pub fn escape(input: &str) -> String {
     input
@@ -153,9 +153,6 @@ fn new_game_form() -> String {
     };
     format!(
         r#"<form method="post" action="/games" class="form">
-  <label>Your name
-    <input type="text" name="your_name" maxlength="24" placeholder="You">
-  </label>
   <label>Seat 2
     <select name="seat2">{seat2}</select>
   </label>
@@ -202,10 +199,11 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
     )
 }
 
-pub fn game_page(view: &GameView, initial_json: &str) -> String {
+pub fn game_page(view: &GameView, initial_json: &str, other_games: &[GameSummary]) -> String {
     let board = render_board_squares(&view.board);
     let scoreboard = render_scoreboard(view);
     let log = render_move_log(view);
+    let other = render_other_games(other_games);
     let status_banner = render_status_banner(view);
     let join = render_join_form(view);
     // Neutralize any "</..." sequence (e.g. a player name containing "</script>")
@@ -225,6 +223,7 @@ pub fn game_page(view: &GameView, initial_json: &str) -> String {
       <aside class="sidebar">
         {scoreboard}
         {log}
+        {other}
       </aside>
     </div>
     <noscript><p class="muted">Enable JavaScript to place tiles and play.</p></noscript>
@@ -245,12 +244,47 @@ fn render_join_form(view: &GameView) -> String {
     format!(
         r#"<form class="join-form" method="post" action="/games/{id}/join">
   <p class="muted">An open seat is waiting. Join to play.</p>
-  <label>Your name
-    <input type="text" name="name" maxlength="24" placeholder="You">
-  </label>
   <button type="submit" class="button">Join game</button>
 </form>"#,
         id = view.id,
+    )
+}
+
+/// The "your other games" panel: every other game the viewer is seated in, with
+/// games waiting on the viewer flagged "your turn".
+fn render_other_games(games: &[GameSummary]) -> String {
+    if games.is_empty() {
+        return String::new();
+    }
+    let items: String = games
+        .iter()
+        .map(|game| {
+            let players: Vec<String> = game.players.iter().map(|name| escape(name)).collect();
+            let li_class = if game.your_turn {
+                " class=\"your-turn\""
+            } else {
+                ""
+            };
+            let tag = if game.your_turn {
+                "<span class=\"badge badge-turn\">your turn</span>".to_string()
+            } else {
+                format!("<span class=\"muted\">{}</span>", game.status)
+            };
+            format!(
+                r#"<li{li_class}>
+  <a href="/games/{id}">{players}</a>
+  {tag}
+</li>"#,
+                id = game.id,
+                players = players.join(" vs "),
+            )
+        })
+        .collect();
+    format!(
+        r#"<div class="other-games">
+  <h2>Your other games</h2>
+  <ul class="other-games-list">{items}</ul>
+</div>"#
     )
 }
 
