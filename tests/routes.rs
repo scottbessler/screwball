@@ -152,6 +152,56 @@ async fn create_join_and_play_flow() {
 }
 
 #[tokio::test]
+async fn game_page_escapes_script_in_embedded_state() {
+    let app = router().await;
+    let home = app.clone().oneshot(get("/", None)).await.unwrap();
+    let cookie = sid_cookie(&home).unwrap();
+
+    // A player name containing "</script>" must not break out of the embedded
+    // JSON <script> element on the game page.
+    let create = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/games")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("your_name=%3C%2Fscript%3E&seat2=easy"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let location = create
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    let page = app
+        .clone()
+        .oneshot(get(&location, Some(&cookie)))
+        .await
+        .unwrap();
+    let html = body_string(page).await;
+
+    // The only literal "</script>" should be the real closing tag of the
+    // game-state script element; the player name must be neutralized to "<\/".
+    let state_block = html
+        .split(r#"<script id="game-state" type="application/json">"#)
+        .nth(1)
+        .expect("game-state script present");
+    let json_text = state_block
+        .split("</script>")
+        .next()
+        .expect("game-state script closes");
+    assert!(!json_text.contains("</script>"));
+    assert!(json_text.contains("<\\/script>"));
+}
+
+#[tokio::test]
 async fn move_out_of_turn_is_rejected() {
     let app = router().await;
     let home = app.clone().oneshot(get("/", None)).await.unwrap();

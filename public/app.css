@@ -267,3 +267,104 @@ body {
 section.card + section.card {
   margin-top: 1.5rem;
 }
+
+/* --- Interactive island --- */
+[hidden] { display: none !important; }
+
+.cell .tile-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell .tile-face.pending {
+  background: #fff7d6;
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.cell .tile-face.tile-blank .tile-letter { color: var(--accent); }
+
+.board [role="grid"],
+.game .board { cursor: default; }
+
+.game .cell:not(.tile) { cursor: pointer; }
+
+.rack-area {
+  margin-top: 1rem;
+}
+
+.rack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  background: var(--board-bg);
+  border-radius: 8px;
+  min-height: 3rem;
+}
+
+.rack-tile {
+  position: relative;
+  width: 2.4rem;
+  height: 2.4rem;
+  background: var(--tile);
+  border: 1px solid var(--tile-edge);
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+.rack-tile .tile-letter { font-size: 1.1rem; }
+
+.rack-tile .tile-points {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 0.5rem;
+  font-weight: 600;
+}
+
+.rack-tile.selected {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-color: var(--accent);
+}
+
+.rack-tile.tile-blank { color: var(--accent); }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.controls .button { margin-top: 0; cursor: pointer; }
+
+.button.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.move-error {
+  margin: 0.5rem 0 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hint { margin-top: 0.5rem; font-size: 0.85rem; }

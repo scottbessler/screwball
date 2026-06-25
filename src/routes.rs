@@ -257,8 +257,16 @@ fn apply_player_move(
 fn run_bots(game: &mut Game, dict: &crate::dict::Dictionary) {
     let mut rng = rand::thread_rng();
     while game.status == GameStatus::Active && game.seats[game.turn].is_bot() {
-        if bot::take_turn(game, dict, &mut rng).is_none() {
-            break;
+        match bot::take_turn(game, dict, &mut rng) {
+            // A successful bot move advances the turn; keep going for the next seat.
+            Some(Ok(_)) => {}
+            // No move available, or the move failed without advancing the turn.
+            // Stop rather than retry the same failing move forever.
+            Some(Err(err)) => {
+                tracing::warn!(error = %err, seat = game.turn, "bot move failed; stopping bot run");
+                break;
+            }
+            None => break,
         }
     }
 }

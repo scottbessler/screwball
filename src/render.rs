@@ -161,22 +161,28 @@ pub fn game_page(view: &GameView, initial_json: &str) -> String {
     let scoreboard = render_scoreboard(view);
     let log = render_move_log(view);
     let status_banner = render_status_banner(view);
+    // Neutralize any "</..." sequence (e.g. a player name containing "</script>")
+    // so embedded JSON can't break out of the surrounding <script> element.
+    let initial_json = initial_json.replace("</", "<\\/");
+    let initial_json = initial_json.as_str();
     let head = r#"<script type="module" src="/public/game.js" defer></script>"#;
     let body = format!(
         r#"<section class="card">
-  {status_banner}
-  <div class="game-layout">
-    <div class="board-wrap">
-      {board}
+  <div id="ssr-fallback">
+    {status_banner}
+    <div class="game-layout">
+      <div class="board-wrap">
+        {board}
+      </div>
+      <aside class="sidebar">
+        {scoreboard}
+        {log}
+      </aside>
     </div>
-    <aside class="sidebar">
-      {scoreboard}
-      {log}
-    </aside>
+    <noscript><p class="muted">Enable JavaScript to place tiles and play.</p></noscript>
   </div>
   <div id="game-island" data-game-id="{id}"></div>
   <script id="game-state" type="application/json">{initial_json}</script>
-  <noscript><p class="muted">Enable JavaScript to place tiles and play.</p></noscript>
 </section>"#,
         id = view.id,
     );

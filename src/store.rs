@@ -71,18 +71,23 @@ impl GameStore {
         games
     }
 
-    /// Mutate a game under the registry lock, then persist the result. The
-    /// closure is synchronous, so move application and bot turns run
+    /// Mutate a game under the registry lock, persisting the result before it
+    /// becomes visible in memory. The closure runs on a clone, which is written
+    /// to disk while the lock is held; only on a successful write is the new
+    /// state committed back to the map. A failed write therefore leaves both
+    /// disk and memory on the previous state (no silent divergence), and the
+    /// serialized persist/commit ordering prevents concurrent updates from
+    /// racing. The closure is synchronous, so move application and bot turns run
     /// atomically with respect to other requests for the same game.
     pub async fn update<R>(&self, id: Uuid, f: impl FnOnce(&mut Game) -> R) -> Result<R, AppError> {
         let mut guard = self.games.lock().await;
-        let game = guard
-            .get_mut(&id)
-            .ok_or_else(|| AppError::not_found("game not found"))?;
-        let outcome = f(game);
-        let snapshot = game.clone();
-        drop(guard);
-        self.persist(&snapshot).await?;
+        let mut working = guard
+            .get(&id)
+            .ok_or_else(|| AppError::not_found("game not found"))?
+            .clone();
+        let outcome = f(&mut working);
+        self.persist(&working).await?;
+        guard.insert(id, working);
         Ok(outcome)
     }
 
