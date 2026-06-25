@@ -548,6 +548,10 @@ function App({ gameId, initial }) {
         }
         return;
       }
+      if (!data) {
+        setError("Unexpected response — try again.");
+        return;
+      }
       setGame(data);
       reset();
     } catch (_) {
