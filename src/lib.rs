@@ -1,9 +1,13 @@
 pub mod app;
 pub mod bag;
 pub mod board;
+pub mod bot;
 pub mod dict;
 pub mod error;
 pub mod game;
 pub mod models;
 pub mod render;
 pub mod routes;
+pub mod session;
+pub mod store;
+pub mod view;

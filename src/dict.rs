@@ -121,6 +121,21 @@ impl Dictionary {
     pub const fn alphabet_size() -> usize {
         ALPHABET
     }
+
+    /// Root node of the trie, for anchored traversal during move generation.
+    pub fn root(&self) -> usize {
+        0
+    }
+
+    /// Follow the edge labelled `letter` from `node`, if present.
+    pub fn step(&self, node: usize, letter: char) -> Option<usize> {
+        letter_index(letter).and_then(|index| self.child(node, index as u8))
+    }
+
+    /// Whether `node` marks the end of a complete word.
+    pub fn is_terminal(&self, node: usize) -> bool {
+        self.nodes[node].is_word
+    }
 }
 
 #[cfg(test)]
