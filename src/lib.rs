@@ -8,3 +8,6 @@ pub mod game;
 pub mod models;
 pub mod render;
 pub mod routes;
+pub mod session;
+pub mod store;
+pub mod view;
