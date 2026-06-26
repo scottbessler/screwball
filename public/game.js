@@ -260,7 +260,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
         key=${tile.id}
         class=${cls}
         data-tile-id=${tile.id}
-        draggable=${!("ontouchstart" in window)}
+        draggable=${true}
         onDragStart=${(e) => {
           dragId.current = tile.id;
           e.dataTransfer.setData("text/plain", String(tile.id));
@@ -275,9 +275,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
           dragId.current = null;
         }}
         onTouchStart=${(e) => handleTouchStart(e, tile)}
-        onClick=${() => {
-          if (!("ontouchstart" in window)) onSelect(tile);
-        }}
+        onClick=${() => onSelect(tile)}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
         <span class="tile-points">${pointsFor(tile.letter, tile.is_blank)}</span>

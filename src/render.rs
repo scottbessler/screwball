@@ -27,7 +27,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{title}</title>
   <link rel="icon" href="/public/favicon.svg">
-  <link rel="apple-touch-icon" href="/public/favicon.svg">
+  <link rel="apple-touch-icon" href="/public/apple-touch-icon.png">
   <link rel="manifest" href="/public/manifest.webmanifest">
   <link rel="stylesheet" href="/public/app.css">
   {head_extra}
