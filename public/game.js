@@ -991,87 +991,87 @@ function App({ gameId, initial }) {
           onDropTile=${dropTileOnBoard}
         />
         ${!seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null}
-        ${seated && !finished
-          ? html`<div class="rack-area">
-              <${Rack}
-                tiles=${rack}
-                selected=${selected}
-                mode=${mode}
-                exchange=${exchange}
-                onSelect=${selectTile}
-                onReorder=${reorderRack}
-                onPlaceOnBoard=${placeTileOnBoard}
-              />
-              ${error ? html`<p class="move-error">${error}</p>` : null}
-              <div class="controls">
-                ${mode === "place"
-                  ? html`<button
-                        type="button"
-                        class="button"
-                        disabled=${controlsDisabled}
-                        onClick=${submitPlay}
-                      >
-                        Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
-                      </button>
-                      <button
-                        type="button"
-                        class="button ghost"
-                        disabled=${busy || !pending.length}
-                        onClick=${() => {
-                          setPending([]);
-                          setCursor(null);
-                        }}
-                      >
-                        Recall
-                      </button>
-                      <button
-                        type="button"
-                        class="button ghost"
-                        disabled=${busy}
-                        onClick=${shuffleRack}
-                      >
-                        Shuffle
-                      </button>
-                      <button
-                        type="button"
-                        class="button ghost"
-                        disabled=${controlsDisabled}
-                        onClick=${() => {
-                          reset();
-                          setMode("exchange");
-                        }}
-                      >
-                        Exchange…
-                      </button>
-                      <button
-                        type="button"
-                        class="button ghost"
-                        disabled=${controlsDisabled}
-                        onClick=${() => postMove({ kind: "pass" })}
-                      >
-                        Pass
-                      </button>`
-                  : html`<button
-                        type="button"
-                        class="button"
-                        disabled=${controlsDisabled}
-                        onClick=${submitExchange}
-                      >
-                        Confirm exchange
-                      </button>
-                      <button
-                        type="button"
-                        class="button ghost"
-                        disabled=${busy}
-                        onClick=${reset}
-                      >
-                        Cancel
-                      </button>`}
-              </div>
-
-            </div>`
-          : null}
       </div>
+      ${seated && !finished
+        ? html`<div class="rack-area">
+            <${Rack}
+              tiles=${rack}
+              selected=${selected}
+              mode=${mode}
+              exchange=${exchange}
+              onSelect=${selectTile}
+              onReorder=${reorderRack}
+              onPlaceOnBoard=${placeTileOnBoard}
+            />
+            ${error ? html`<p class="move-error">${error}</p>` : null}
+            <div class="controls">
+              ${mode === "place"
+                ? html`<button
+                      type="button"
+                      class="button"
+                      disabled=${controlsDisabled}
+                      onClick=${submitPlay}
+                    >
+                      Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
+                    </button>
+                    <button
+                      type="button"
+                      class="button ghost"
+                      disabled=${busy || !pending.length}
+                      onClick=${() => {
+                        setPending([]);
+                        setCursor(null);
+                      }}
+                    >
+                      Recall
+                    </button>
+                    <button
+                      type="button"
+                      class="button ghost"
+                      disabled=${busy}
+                      onClick=${shuffleRack}
+                    >
+                      Shuffle
+                    </button>
+                    <button
+                      type="button"
+                      class="button ghost"
+                      disabled=${controlsDisabled}
+                      onClick=${() => {
+                        reset();
+                        setMode("exchange");
+                      }}
+                    >
+                      Exchange…
+                    </button>
+                    <button
+                      type="button"
+                      class="button ghost"
+                      disabled=${controlsDisabled}
+                      onClick=${() => postMove({ kind: "pass" })}
+                    >
+                      Pass
+                    </button>`
+                : html`<button
+                      type="button"
+                      class="button"
+                      disabled=${controlsDisabled}
+                      onClick=${submitExchange}
+                    >
+                      Confirm exchange
+                    </button>
+                    <button
+                      type="button"
+                      class="button ghost"
+                      disabled=${busy}
+                      onClick=${reset}
+                    >
+                      Cancel
+                    </button>`}
+            </div>
+
+          </div>`
+        : null}
       <aside class="sidebar">
         <${Scoreboard} game=${game} />
         <p class="muted">Tiles in bag: ${game.bag_count}</p>
