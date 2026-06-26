@@ -144,7 +144,7 @@ body {
 
 .game-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(200px, 1fr);
+  grid-template-columns: minmax(min(360px, 100%), 1fr) minmax(min(200px, 100%), 1fr);
   gap: 1.5rem;
   align-items: start;
   margin-top: 1rem;
@@ -165,7 +165,7 @@ body {
 
 .sidebar {
   grid-column: 2;
-  grid-row: 1 / -1;
+  grid-row: 1 / span 2;
   min-width: 200px;
 }
 
