@@ -593,17 +593,15 @@ function OtherGames({ gameId }) {
 const BASE_FAVICON = "/public/favicon.svg";
 
 function setFavicon(yourTurn) {
-  let link = document.querySelector('link[rel="icon"]');
-  if (!link) {
-    link = document.createElement("link");
-    link.rel = "icon";
-    document.head.appendChild(link);
-  }
+  const old = document.querySelector('link[rel="icon"]');
+  if (old) old.remove();
+  const link = document.createElement("link");
+  link.rel = "icon";
+  link.type = "image/svg+xml";
   if (!yourTurn) {
     link.href = BASE_FAVICON;
-    return;
-  }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  } else {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" rx="12" fill="#f6e6b4" stroke="#d8c27e" stroke-width="3"/>
   <text x="32" y="42" font-family="Georgia, serif" font-size="36" font-weight="700"
         text-anchor="middle" fill="#b4451f">S</text>
@@ -611,7 +609,9 @@ function setFavicon(yourTurn) {
         text-anchor="middle" fill="#1f2933">1</text>
   <circle cx="54" cy="10" r="9" fill="#e53e3e"/>
 </svg>`;
-  link.href = "data:image/svg+xml," + encodeURIComponent(svg);
+    link.href = "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+  document.head.appendChild(link);
 }
 
 function statusText(game) {
