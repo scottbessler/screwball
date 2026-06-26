@@ -439,11 +439,7 @@ fn apply_hint(
         });
     }
 
-    if game.hints_used.len() <= seat_index {
-        game.hints_used.resize(game.seats.len(), 0);
-    }
-
-    let used = game.hints_used[seat_index];
+    let used = game.hints_used.get(seat_index).copied().unwrap_or(0);
     if used >= game.hints_allowed {
         return Err(ApiMoveError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
@@ -462,6 +458,9 @@ fn apply_hint(
 
     match best {
         Some((_, scored)) => {
+            if game.hints_used.len() <= seat_index {
+                game.hints_used.resize(game.seats.len(), 0);
+            }
             game.hints_used[seat_index] += 1;
             let remaining = game.hints_allowed - game.hints_used[seat_index];
             let words: Vec<&str> = scored.words.iter().map(|w| w.word.as_str()).collect();
