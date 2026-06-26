@@ -639,9 +639,21 @@ section.card + section.card {
     gap: 0;
     flex: 1 1 auto;
     overflow: hidden;
+    min-height: 0;
   }
 
-  .sidebar { display: none; }
+  .sidebar {
+    flex: 0 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 30dvh;
+    padding: 0.4rem 0.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+
+  .sidebar .scoreboard { font-size: 0.8rem; margin-bottom: 0.25rem; }
+  .sidebar .move-log { font-size: 0.8rem; max-height: none; }
 
   .board-wrap {
     flex: 1 1 auto;
