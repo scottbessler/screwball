@@ -152,7 +152,16 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
   const boardRef = useRef(null);
   const pinchState = useRef(null);
   const scaleRef = useRef(1);
-  const originRef = useRef({ x: 50, y: 50 });
+  const panRef = useRef({ x: 0, y: 0 });
+  const panStartRef = useRef(null);
+
+  function applyTransform() {
+    if (!boardRef.current) return;
+    const s = scaleRef.current;
+    const { x, y } = panRef.current;
+    boardRef.current.style.transform = s === 1 && x === 0 && y === 0
+      ? "" : `scale(${s}) translate(${x}px, ${y}px)`;
+  }
 
   function handleBoardTouchStart(e) {
     if (e.touches.length === 2) {
@@ -161,11 +170,21 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
       const dy = e.touches[1].clientY - e.touches[0].clientY;
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const rect = boardRef.current.getBoundingClientRect();
+      const ox = ((midX - rect.left) / rect.width) * 100;
+      const oy = ((midY - rect.top) / rect.height) * 100;
+      boardRef.current.style.transformOrigin = `${ox}% ${oy}%`;
       pinchState.current = {
         dist: Math.hypot(dx, dy),
         baseScale: scaleRef.current,
-        midX,
-        midY,
+      };
+      panStartRef.current = null;
+    } else if (e.touches.length === 1 && scaleRef.current > 1) {
+      panStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        basePanX: panRef.current.x,
+        basePanY: panRef.current.y,
       };
     }
   }
@@ -179,27 +198,35 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
       const ratio = dist / pinchState.current.dist;
       const newScale = Math.min(Math.max(pinchState.current.baseScale * ratio, 1), 3);
       scaleRef.current = newScale;
-      // Calculate origin relative to board element
-      const rect = boardRef.current.getBoundingClientRect();
-      const ox = ((pinchState.current.midX - rect.left) / rect.width) * 100;
-      const oy = ((pinchState.current.midY - rect.top) / rect.height) * 100;
-      originRef.current = { x: ox, y: oy };
-      boardRef.current.style.transform = `scale(${newScale})`;
-      boardRef.current.style.transformOrigin = `${ox}% ${oy}%`;
+      applyTransform();
+    } else if (e.touches.length === 1 && panStartRef.current && scaleRef.current > 1) {
+      const dx = e.touches[0].clientX - panStartRef.current.x;
+      const dy = e.touches[0].clientY - panStartRef.current.y;
+      if (Math.abs(dx) + Math.abs(dy) > 5) {
+        e.preventDefault();
+        panRef.current = {
+          x: panStartRef.current.basePanX + dx / scaleRef.current,
+          y: panStartRef.current.basePanY + dy / scaleRef.current,
+        };
+        applyTransform();
+      }
     }
   }
 
   function handleBoardTouchEnd(e) {
     if (e.touches.length < 2) {
       pinchState.current = null;
-      // Snap back to 1 if close
       if (scaleRef.current < 1.1) {
         scaleRef.current = 1;
+        panRef.current = { x: 0, y: 0 };
         if (boardRef.current) {
           boardRef.current.style.transform = "";
           boardRef.current.style.transformOrigin = "";
         }
       }
+    }
+    if (e.touches.length === 0) {
+      panStartRef.current = null;
     }
   }
 
@@ -209,6 +236,7 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
     const now = Date.now();
     if (now - lastTapRef.current < 300 && e.touches.length === 1) {
       scaleRef.current = 1;
+      panRef.current = { x: 0, y: 0 };
       if (boardRef.current) {
         boardRef.current.style.transform = "";
         boardRef.current.style.transformOrigin = "";
@@ -260,6 +288,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
     const touch = e.touches[0];
     touchState.current = {
       id: tile.id,
+      originalId: tile.id,
       startX: touch.clientX,
       startY: touch.clientY,
       dragging: false,
@@ -303,6 +332,9 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
           if (targetId !== touchState.current.id) {
             onReorder(touchState.current.id, targetId);
             touchState.current.id = targetId;
+            btn.classList.remove("reorder-pop");
+            void btn.offsetWidth;
+            btn.classList.add("reorder-pop");
           }
         }
         // Highlight board cell
@@ -335,7 +367,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
           if (cell && cell.dataset.row != null && cell.dataset.col != null) {
             const row = Number(cell.dataset.row);
             const col = Number(cell.dataset.col);
-            const tile = tiles.find((t) => t.id === touchState.current.id);
+            const tile = tiles.find((t) => t.id === touchState.current.originalId);
             if (tile && onPlaceOnBoard) {
               onPlaceOnBoard(tile, row, col);
             }
@@ -659,13 +691,13 @@ function App({ gameId, initial }) {
     }
     // Tap-to-place: if cursor is set, tapping a rack tile places it directly
     if (cursor && mode === "place") {
-      if (tile.is_blank) {
-        setBlankPrompt({ row: cursor.row, col: cursor.col, rackId: tile.id });
-        return;
-      }
       const target = firstEmptyFrom(cursor.row, cursor.col, cursor.dir, pending);
       if (!target) {
         setError("No room to place a tile that way.");
+        return;
+      }
+      if (tile.is_blank) {
+        setBlankPrompt({ row: target.row, col: target.col, rackId: tile.id });
         return;
       }
       const next = [
