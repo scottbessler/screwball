@@ -51,7 +51,7 @@ pub fn nav() -> &'static str {
   <a class="brand" href="/">Screwball</a>
   <div class="nav-links">
     <a href="/">Games</a>
-    <a href="/demo">Demo board</a>
+    <a class="demo-link" href="/demo">Demo board</a>
   </div>
 </nav>"#
 }

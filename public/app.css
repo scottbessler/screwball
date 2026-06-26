@@ -639,13 +639,15 @@ section.card + section.card {
     background: var(--bg);
   }
 
-  .game .status {
+  .game .status { display: none; }
+
+  .nav .turn-indicator {
     font-size: 0.75rem;
-    padding: 0.15rem 0.5rem;
-    margin: 0;
-    text-align: center;
     opacity: 0.8;
+    white-space: nowrap;
   }
+
+  .nav-links .demo-link { display: none; }
 
   .game-layout {
     flex-direction: column;
@@ -676,7 +678,7 @@ section.card + section.card {
     justify-content: center;
     min-height: 0;
     width: 100%;
-    overflow: hidden;
+    overflow: clip;
     position: relative;
     z-index: 0;
   }

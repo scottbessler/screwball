@@ -641,6 +641,22 @@ function App({ gameId, initial }) {
     setRackOrder((game.your_rack || []).map((_, i) => i));
   }, [sig]);
 
+  // Inject turn indicator into nav bar on mobile
+  const status = statusText(game);
+  useEffect(() => {
+    if (window.innerWidth > 480) return;
+    const nav = document.querySelector(".nav");
+    if (!nav) return;
+    let el = nav.querySelector(".turn-indicator");
+    if (!el) {
+      el = document.createElement("span");
+      el.className = "turn-indicator";
+      nav.querySelector(".nav-links").before(el);
+    }
+    el.textContent = status;
+    return () => el.remove();
+  }, [status]);
+
   const usedRackIds = new Set(pending.map((p) => p.rackId));
   const rackTiles = game.your_rack || [];
   const order =
