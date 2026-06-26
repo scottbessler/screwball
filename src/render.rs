@@ -23,8 +23,11 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>{title}</title>
   <link rel="icon" href="/public/favicon.svg">
+  <link rel="apple-touch-icon" href="/public/favicon.svg">
   <link rel="manifest" href="/public/manifest.webmanifest">
   <link rel="stylesheet" href="/public/app.css">
   {head_extra}

@@ -176,12 +176,15 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
   const rackRef = useRef(null);
 
   function handleTouchStart(e, tile) {
+    e.preventDefault();
     const touch = e.touches[0];
     touchState.current = {
       id: tile.id,
       startX: touch.clientX,
       startY: touch.clientY,
       dragging: false,
+      ghost: null,
+      sourceEl: e.currentTarget,
     };
   }
 
@@ -190,11 +193,23 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
     const touch = e.touches[0];
     const dx = touch.clientX - touchState.current.startX;
     const dy = touch.clientY - touchState.current.startY;
-    if (!touchState.current.dragging && Math.abs(dx) + Math.abs(dy) > 10) {
+    if (!touchState.current.dragging && Math.abs(dx) + Math.abs(dy) > 8) {
       touchState.current.dragging = true;
+      touchState.current.sourceEl.classList.add("dragging");
+      const tile = tiles.find((t) => t.id === touchState.current.id);
+      const ghost = document.createElement("div");
+      ghost.className = "rack-tile-ghost";
+      ghost.textContent = tile ? (tile.is_blank ? " " : tile.letter) : "";
+      document.body.appendChild(ghost);
+      touchState.current.ghost = ghost;
     }
     if (touchState.current.dragging) {
       e.preventDefault();
+      const ghost = touchState.current.ghost;
+      if (ghost) {
+        ghost.style.left = touch.clientX + "px";
+        ghost.style.top = touch.clientY + "px";
+      }
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
       if (el) {
         const btn = el.closest(".rack-tile");
@@ -210,10 +225,18 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
   }
 
   function handleTouchEnd(e) {
-    if (touchState.current && !touchState.current.dragging) {
-      e.preventDefault();
-      const tile = tiles.find((t) => t.id === touchState.current.id);
-      if (tile) onSelect(tile);
+    if (touchState.current) {
+      if (touchState.current.ghost) {
+        touchState.current.ghost.remove();
+      }
+      if (touchState.current.sourceEl) {
+        touchState.current.sourceEl.classList.remove("dragging");
+      }
+      if (!touchState.current.dragging) {
+        e.preventDefault();
+        const tile = tiles.find((t) => t.id === touchState.current.id);
+        if (tile) onSelect(tile);
+      }
     }
     touchState.current = null;
   }
@@ -237,7 +260,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
         key=${tile.id}
         class=${cls}
         data-tile-id=${tile.id}
-        draggable=${true}
+        draggable=${!("ontouchstart" in window)}
         onDragStart=${(e) => {
           dragId.current = tile.id;
           e.dataTransfer.setData("text/plain", String(tile.id));
@@ -252,7 +275,9 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
           dragId.current = null;
         }}
         onTouchStart=${(e) => handleTouchStart(e, tile)}
-        onClick=${() => onSelect(tile)}
+        onClick=${() => {
+          if (!("ontouchstart" in window)) onSelect(tile);
+        }}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
         <span class="tile-points">${pointsFor(tile.letter, tile.is_blank)}</span>

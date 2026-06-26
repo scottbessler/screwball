@@ -628,11 +628,7 @@ section.card + section.card {
     background: var(--bg);
   }
 
-  .game .status {
-    font-size: 1rem;
-    margin: 0.2rem 0;
-    text-align: center;
-  }
+  .game .status { display: none; }
 
   .game-layout {
     flex-direction: column;
@@ -709,6 +705,28 @@ section.card + section.card {
     text-align: center;
     padding: 0.5rem 0.4rem;
     font-size: 0.85rem;
+  }
+
+  .rack-tile.dragging {
+    opacity: 0.3;
+  }
+
+  .rack-tile-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    width: 2.4rem;
+    height: 2.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transform: translate(-50%, -50%);
   }
 
   /* Hide non-game cards on mobile game page */
