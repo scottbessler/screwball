@@ -22,7 +22,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <title>{title}</title>
   <link rel="icon" href="/public/favicon.svg">
   <link rel="manifest" href="/public/manifest.webmanifest">

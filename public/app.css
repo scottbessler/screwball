@@ -409,7 +409,7 @@ section.card + section.card {
   font-weight: 600;
 }
 
-.hint { margin-top: 0.5rem; font-size: 0.85rem; }
+
 
 /* Typing cursor on the board */
 .cell.cursor {
@@ -592,4 +592,116 @@ section.card + section.card {
   .rack-tile .tile-letter { font-size: 0.95rem; }
   .controls .button { flex: 1 1 auto; text-align: center; }
   .letter-grid { grid-template-columns: repeat(6, 1fr); }
+}
+
+/* Game-page mobile: full-bleed, no-scroll, optimized for iPhone 15 Pro */
+@media (max-width: 480px) {
+  html, body {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .nav {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .page {
+    padding: 0;
+    max-width: none;
+    height: calc(100dvh - 41px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .page > .card {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0.4rem;
+    border: none;
+    border-radius: 0;
+    background: var(--bg);
+  }
+
+  .game .status {
+    font-size: 1rem;
+    margin: 0.2rem 0;
+    text-align: center;
+  }
+
+  .game-layout {
+    flex-direction: column;
+    gap: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .sidebar { display: none; }
+
+  .board-wrap {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .board {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    border-radius: 4px;
+    gap: 1px;
+    padding: 1px;
+    border-width: 1px;
+    touch-action: none;
+  }
+
+  .rack-area {
+    margin-top: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .rack {
+    padding: 0.4rem;
+    gap: 0.35rem;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  .rack-tile {
+    width: 2.4rem;
+    height: 2.4rem;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .rack-tile .tile-letter { font-size: 1.05rem; }
+
+  .controls {
+    margin-top: 0.4rem;
+    padding: 0 0.25rem;
+    gap: 0.35rem;
+  }
+
+  .controls .button {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 0.5rem 0.4rem;
+    font-size: 0.85rem;
+  }
+
+  /* Hide non-game cards on mobile game page */
+  .login-cta { display: none; }
+
+  /* Results card compact */
+  .results { font-size: 0.9rem; padding: 0.75rem; }
 }
