@@ -878,6 +878,7 @@ function boot() {
     (e) => {
       if (window.innerWidth > 480) return;
       if (e.target.closest(".modal-backdrop")) return;
+      if (e.target.closest(".sidebar")) return;
       e.preventDefault();
     },
     { passive: false },
