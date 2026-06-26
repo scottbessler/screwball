@@ -172,7 +172,55 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick }) {
 
 function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
   const dragId = useRef(null);
-  return html`<div class="rack">
+  const touchState = useRef(null);
+  const rackRef = useRef(null);
+
+  function handleTouchStart(e, tile) {
+    const touch = e.touches[0];
+    touchState.current = {
+      id: tile.id,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      dragging: false,
+    };
+  }
+
+  function handleTouchMove(e) {
+    if (!touchState.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchState.current.startX;
+    const dy = touch.clientY - touchState.current.startY;
+    if (!touchState.current.dragging && Math.abs(dx) + Math.abs(dy) > 10) {
+      touchState.current.dragging = true;
+    }
+    if (touchState.current.dragging) {
+      e.preventDefault();
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (el) {
+        const btn = el.closest(".rack-tile");
+        if (btn && btn.dataset.tileId != null) {
+          const targetId = Number(btn.dataset.tileId);
+          if (targetId !== touchState.current.id) {
+            onReorder(touchState.current.id, targetId);
+            touchState.current.id = targetId;
+          }
+        }
+      }
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (touchState.current && !touchState.current.dragging) {
+      const tile = tiles.find((t) => t.id === touchState.current.id);
+      if (tile) onSelect(tile);
+    }
+    touchState.current = null;
+  }
+
+  return html`<div class="rack" ref=${rackRef}
+    onTouchMove=${handleTouchMove}
+    onTouchEnd=${handleTouchEnd}
+  >
     ${tiles.map((tile) => {
       const picked =
         mode === "exchange" ? exchange.has(tile.id) : selected === tile.id;
@@ -187,10 +235,10 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
         type="button"
         key=${tile.id}
         class=${cls}
+        data-tile-id=${tile.id}
         draggable=${true}
         onDragStart=${(e) => {
           dragId.current = tile.id;
-          // Firefox/Safari won't fire drop unless dataTransfer is set.
           e.dataTransfer.setData("text/plain", String(tile.id));
           e.dataTransfer.effectAllowed = "move";
         }}
@@ -202,6 +250,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
           }
           dragId.current = null;
         }}
+        onTouchStart=${(e) => handleTouchStart(e, tile)}
         onClick=${() => onSelect(tile)}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
@@ -777,14 +826,7 @@ function App({ gameId, initial }) {
                         Cancel
                       </button>`}
               </div>
-              ${mode === "place" && yourTurn
-                ? html`<p class="muted hint">
-                    Click a square to start a word, then type letters (click an
-                    adjacent square to set direction, or click again to toggle
-                    →/↓). Or tap a rack tile, then a square. Drag rack tiles to
-                    reorder; Shuffle to randomize. Enter plays, Esc clears.
-                  </p>`
-                : null}
+
             </div>`
           : null}
       </div>
@@ -827,6 +869,16 @@ function boot() {
   render(
     html`<${App} gameId=${mount.dataset.gameId} initial=${initial} />`,
     mount,
+  );
+
+  // Prevent pull-to-refresh and rubber-band scrolling on iOS
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      if (e.target.closest(".modal-backdrop")) return;
+      e.preventDefault();
+    },
+    { passive: false },
   );
 }
 
