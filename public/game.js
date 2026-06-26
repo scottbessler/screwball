@@ -211,6 +211,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
 
   function handleTouchEnd(e) {
     if (touchState.current && !touchState.current.dragging) {
+      e.preventDefault();
       const tile = tiles.find((t) => t.id === touchState.current.id);
       if (tile) onSelect(tile);
     }
@@ -871,10 +872,11 @@ function boot() {
     mount,
   );
 
-  // Prevent pull-to-refresh and rubber-band scrolling on iOS
+  // Prevent pull-to-refresh and rubber-band scrolling on iOS (mobile only)
   document.addEventListener(
     "touchmove",
     (e) => {
+      if (window.innerWidth > 480) return;
       if (e.target.closest(".modal-backdrop")) return;
       e.preventDefault();
     },
