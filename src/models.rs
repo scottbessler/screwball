@@ -188,6 +188,8 @@ pub struct Game {
     pub consecutive_scoreless: u8,
     pub created_at: DateTime<Utc>,
     #[serde(default)]
+    pub updated_at: DateTime<Utc>,
+    #[serde(default)]
     pub john_mode: bool,
     #[serde(default)]
     pub hints_allowed: u8,

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -135,6 +136,10 @@ pub struct GameSummary {
     pub players: Vec<String>,
     pub status: &'static str,
     pub your_turn: bool,
+    #[serde(skip)]
+    pub is_active: bool,
+    #[serde(skip)]
+    pub effective_updated_at: DateTime<Utc>,
 }
 
 impl GameSummary {
@@ -144,6 +149,12 @@ impl GameSummary {
             .seats
             .iter()
             .position(|seat| seat_user(seat) == Some(viewer))?;
+        let is_active = game.status != GameStatus::Finished;
+        let effective_updated_at = if game.updated_at == DateTime::<Utc>::default() {
+            game.created_at
+        } else {
+            game.updated_at
+        };
         Some(Self {
             id: game.id,
             players: game.seats.iter().map(|seat| seat.name.clone()).collect(),
@@ -153,6 +164,8 @@ impl GameSummary {
                 GameStatus::Finished => "finished",
             },
             your_turn: game.status == GameStatus::Active && game.turn == your_seat,
+            is_active,
+            effective_updated_at,
         })
     }
 }

@@ -153,21 +153,28 @@ pub async fn game_page(
     )))
 }
 
-/// The viewer's games (newest-first), optionally excluding one game id, each
-/// flagged with whether it is the viewer's turn.
+/// The viewer's games sorted active-first then most-recently-updated-first,
+/// optionally excluding one game id, each flagged with whether it is the
+/// viewer's turn.
 async fn my_game_summaries(
     state: &AppState,
     user: Uuid,
     exclude: Option<Uuid>,
 ) -> Vec<GameSummary> {
-    state
+    let mut summaries: Vec<GameSummary> = state
         .store
         .list()
         .await
         .iter()
         .filter(|game| Some(game.id) != exclude)
         .filter_map(|game| GameSummary::for_viewer(game, user))
-        .collect()
+        .collect();
+    summaries.sort_by(|a, b| {
+        b.is_active
+            .cmp(&a.is_active)
+            .then(b.effective_updated_at.cmp(&a.effective_updated_at))
+    });
+    summaries
 }
 
 /// JSON list of the signed-in viewer's games, used by the game page to keep the
