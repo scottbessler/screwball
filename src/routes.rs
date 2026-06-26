@@ -60,6 +60,10 @@ pub struct CreateForm {
     seat2: Option<String>,
     seat3: Option<String>,
     seat4: Option<String>,
+    #[serde(default)]
+    john_mode: Option<String>,
+    #[serde(default)]
+    hints: Option<u8>,
 }
 
 pub async fn create_game(
@@ -92,7 +96,9 @@ pub async fn create_game(
         return Err(AppError::bad_request("a game supports at most four seats"));
     }
 
-    let game = game::new_game(specs, &mut rand::thread_rng());
+    let john_mode = form.john_mode.is_some();
+    let hints_allowed = form.hints.unwrap_or(0).min(3);
+    let game = game::new_game(specs, john_mode, hints_allowed, &mut rand::thread_rng());
     let id = game.id;
     state.store.insert(game).await?;
 
@@ -371,6 +377,93 @@ fn parse_tile(raw: &str) -> Result<Tile, String> {
         "?" | "_" | "" => Ok(Tile::Blank),
         other => Ok(Tile::Letter(parse_letter(other)?)),
     }
+}
+
+pub async fn hint(
+    State(state): State<AppState>,
+    ApiAuthUser(user): ApiAuthUser,
+    Path(id): Path<Uuid>,
+) -> Response {
+    let game = match state.store.get(id).await {
+        Some(game) => game,
+        None => return move_error(StatusCode::NOT_FOUND, "game not found"),
+    };
+
+    if game.status != GameStatus::Active {
+        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "the game is not active");
+    }
+
+    let seat_index = match game.seats.iter().position(|seat| match seat.kind {
+        SeatKind::Human { user_id } => user_id == Some(user),
+        SeatKind::Bot { .. } => false,
+    }) {
+        Some(i) => i,
+        None => return move_error(StatusCode::FORBIDDEN, "you are not seated in this game"),
+    };
+
+    if seat_index != game.turn {
+        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "it is not your turn");
+    }
+
+    if game.hints_allowed == 0 {
+        return move_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "hints are not enabled for this game",
+        );
+    }
+
+    let used = game.hints_used.get(seat_index).copied().unwrap_or(0);
+    if used >= game.hints_allowed {
+        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "no hints remaining");
+    }
+
+    let min_word_length = game.min_word_length();
+    let plays = bot::scored_plays(
+        &game.board,
+        &game.seats[seat_index].rack,
+        &state.dict,
+        min_word_length,
+    );
+
+    let best = plays.iter().max_by_key(|p| p.1.points);
+
+    let remaining = match best {
+        Some((_, scored)) => {
+            let _ = state
+                .store
+                .update(id, move |game| {
+                    if game.hints_used.len() <= seat_index {
+                        game.hints_used.resize(game.seats.len(), 0);
+                    }
+                    game.hints_used[seat_index] += 1;
+                })
+                .await;
+
+            let remaining = game.hints_allowed - used - 1;
+            let words: Vec<&str> = scored.words.iter().map(|w| w.word.as_str()).collect();
+            return (
+                StatusCode::OK,
+                Json(json!({
+                    "words": words,
+                    "score": scored.points,
+                    "remaining": remaining
+                })),
+            )
+                .into_response();
+        }
+        None => game.hints_allowed - used,
+    };
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "words": [],
+            "score": 0,
+            "remaining": remaining,
+            "message": "no plays available"
+        })),
+    )
+        .into_response()
 }
 
 fn move_error(status: StatusCode, message: &str) -> Response {

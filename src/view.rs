@@ -19,6 +19,16 @@ pub struct GameView {
     pub bag_count: usize,
     pub moves: Vec<MoveView>,
     pub winners: Vec<usize>,
+    pub john_mode: bool,
+    pub hints_allowed: u8,
+    pub hints_remaining: u8,
+    pub last_play: Vec<PositionView>,
+}
+
+#[derive(Serialize)]
+pub struct PositionView {
+    pub row: usize,
+    pub col: usize,
 }
 
 #[derive(Serialize)]
@@ -89,6 +99,15 @@ impl GameView {
             })
             .collect();
 
+        let hints_remaining = match your_seat {
+            Some(i) if game.hints_allowed > 0 => game
+                .hints_allowed
+                .saturating_sub(game.hints_used.get(i).copied().unwrap_or(0)),
+            _ => 0,
+        };
+
+        let last_play = last_play_positions(game);
+
         Self {
             id: game.id,
             status: game.status,
@@ -100,6 +119,10 @@ impl GameView {
             bag_count: game.bag.len(),
             moves: game.moves.iter().map(move_view).collect(),
             winners: winners(game),
+            john_mode: game.john_mode,
+            hints_allowed: game.hints_allowed,
+            hints_remaining,
+            last_play,
         }
     }
 }
@@ -199,6 +222,25 @@ fn tile_label(tile: &Tile) -> String {
         Tile::Letter(letter) => letter.to_string(),
         Tile::Blank => "?".to_string(),
     }
+}
+
+fn last_play_positions(game: &Game) -> Vec<PositionView> {
+    game.moves
+        .iter()
+        .rev()
+        .find_map(|mv| match &mv.kind {
+            MoveKind::Play { placements } => Some(
+                placements
+                    .iter()
+                    .map(|p| PositionView {
+                        row: p.position.row,
+                        col: p.position.col,
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 /// Indices of the highest-scoring seat(s) once a game is finished.

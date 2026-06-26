@@ -40,17 +40,20 @@ fn bot_game(racks: &[&str], difficulty: Difficulty) -> Game {
         moves: Vec::new(),
         consecutive_scoreless: 0,
         created_at: Utc::now(),
+        john_mode: false,
+        hints_allowed: 0,
+        hints_used: vec![0; racks.len()],
     }
 }
 
 #[test]
 fn generates_first_move_through_center() {
     let board = Board::new();
-    let plays = bot::scored_plays(&board, &rack("COATSXY"), &dict());
+    let plays = bot::scored_plays(&board, &rack("COATSXY"), &dict(), 2);
     assert!(!plays.is_empty());
     // Every first-move play must cover the center and re-validate cleanly.
     for (placements, _) in &plays {
-        assert!(validate_play(&board, &rack("COATSXY"), &dict(), placements).is_ok());
+        assert!(validate_play(&board, &rack("COATSXY"), &dict(), placements, 2).is_ok());
     }
 }
 
@@ -61,7 +64,7 @@ fn hard_bot_picks_a_scoring_play() {
     let kind = bot::choose_move(&game, &dict(), 0, &mut rng);
     match kind {
         MoveKind::Play { placements } => {
-            let scored = validate_play(&game.board, &game.seats[0].rack, &dict(), &placements)
+            let scored = validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, 2)
                 .expect("bot play is legal");
             assert!(scored.points > 0);
         }

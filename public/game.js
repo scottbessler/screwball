@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useRef,
+  useMemo,
 } from "/public/vendor/htm-preact.js";
 
 const SIZE = 15;
@@ -99,8 +100,8 @@ function rackSignature(game) {
 }
 
 // A board tile rendered for a committed letter or a pending placement.
-function Tile({ letter, isBlank, points, pending, onClick }) {
-  const cls = ["tile-face", isBlank ? "tile-blank" : "", pending ? "pending" : ""]
+function Tile({ letter, isBlank, points, pending, lastPlay, onClick }) {
+  const cls = ["tile-face", isBlank ? "tile-blank" : "", pending ? "pending" : "", lastPlay || ""]
     .filter(Boolean)
     .join(" ");
   return html`<span class=${cls} onClick=${onClick}>
@@ -109,13 +110,15 @@ function Tile({ letter, isBlank, points, pending, onClick }) {
   </span>`;
 }
 
-function Cell({ square, pending, row, col, cursor, onClick, onDragOver, onDrop }) {
+function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver, onDrop }) {
   if (square.letter) {
+    const lp = lastPlay ? "last-play" : "";
     return html`<div class="cell tile" data-row=${row} data-col=${col}>
       <${Tile}
         letter=${square.letter}
         isBlank=${square.is_blank}
         points=${pointsFor(square.letter, square.is_blank)}
+        lastPlay=${lp}
       />
     </div>`;
   }
@@ -147,7 +150,7 @@ function Cell({ square, pending, row, col, cursor, onClick, onDragOver, onDrop }
   </div>`;
 }
 
-function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile }) {
+function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick, onDropTile }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const boardRef = useRef(null);
   const pinchState = useRef(null);
@@ -259,6 +262,7 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
           row=${row}
           col=${col}
           cursor=${cursor}
+          lastPlay=${lastPlaySet && lastPlaySet.has(i)}
           onClick=${() =>
             place ? onPendingClick(place) : onCellClick(row, col)}
           onDragOver=${isEmpty ? (e) => e.preventDefault() : null}
@@ -588,6 +592,30 @@ function OtherGames({ gameId }) {
   </div>`;
 }
 
+const BASE_FAVICON = "/public/favicon.svg";
+
+function setFavicon(yourTurn) {
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  if (!yourTurn) {
+    link.href = BASE_FAVICON;
+    return;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="12" fill="#f6e6b4" stroke="#d8c27e" stroke-width="3"/>
+  <text x="32" y="42" font-family="Georgia, serif" font-size="36" font-weight="700"
+        text-anchor="middle" fill="#b4451f">S</text>
+  <text x="52" y="56" font-family="system-ui, sans-serif" font-size="12" font-weight="600"
+        text-anchor="middle" fill="#1f2933">1</text>
+  <circle cx="54" cy="10" r="9" fill="#e53e3e"/>
+</svg>`;
+  link.href = "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
 function statusText(game) {
   if (game.status === "Lobby") return "Waiting to start";
   if (game.status === "Finished") {
@@ -615,9 +643,31 @@ function App({ gameId, initial }) {
     (initial.your_rack || []).map((_, i) => i),
   );
 
+  const [hintResult, setHintResult] = useState(null);
+  const [hintsRemaining, setHintsRemaining] = useState(initial.hints_remaining || 0);
+  const [hintBusy, setHintBusy] = useState(false);
+
   const yourTurn = isYourTurn(game);
   const seated = game.your_seat !== null && game.your_seat !== undefined;
   const hasOpenSeat = game.seats.some((s) => s.open);
+
+  const lastPlaySet = useMemo(() => {
+    const s = new Set();
+    if (game.last_play) {
+      for (const p of game.last_play) s.add(idx(p.row, p.col));
+    }
+    return s;
+  }, [game]);
+
+  useEffect(() => {
+    setFavicon(yourTurn);
+    return () => setFavicon(false);
+  }, [yourTurn]);
+
+  useEffect(() => {
+    setHintsRemaining(game.hints_remaining || 0);
+    setHintResult(null);
+  }, [game.turn]);
 
   // Poll for opponent/bot moves while we are waiting.
   useEffect(() => {
@@ -907,6 +957,28 @@ function App({ gameId, initial }) {
     setSelected(null);
   }
 
+  async function requestHint() {
+    setHintBusy(true);
+    try {
+      const res = await fetch(`/games/${gameId}/hint`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not get hint.");
+        return;
+      }
+      setHintsRemaining(data.remaining);
+      if (data.words && data.words.length) {
+        setHintResult(`Try: ${data.words.join(", ")} (${data.score} pts)`);
+      } else {
+        setHintResult(data.message || "No plays available.");
+      }
+    } catch (_) {
+      setError("Network error — try again.");
+    } finally {
+      setHintBusy(false);
+    }
+  }
+
   async function postMove(body) {
     setBusy(true);
     setError(null);
@@ -986,6 +1058,7 @@ function App({ gameId, initial }) {
           game=${game}
           pending=${pending}
           cursor=${yourTurn && mode === "place" ? cursor : null}
+          lastPlaySet=${lastPlaySet}
           onCellClick=${onCellClick}
           onPendingClick=${recallTile}
           onDropTile=${dropTileOnBoard}
@@ -1069,10 +1142,23 @@ function App({ gameId, initial }) {
                       Cancel
                     </button>`}
             </div>
-
+            ${game.hints_allowed > 0
+              ? html`<div>
+                  <button type="button" class="hint-btn"
+                    disabled=${!yourTurn || hintBusy || hintsRemaining <= 0}
+                    onClick=${requestHint}>
+                    Hint (${hintsRemaining} left)
+                  </button>
+                  ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
+                </div>`
+              : null}
           </div>`
         : null}
       <aside class="sidebar">
+        <div class="game-badges">
+          ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
+          ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
+        </div>
         <${Scoreboard} game=${game} />
         <p class="muted">Tiles in bag: ${game.bag_count}</p>
         <${MoveLog} game=${game} />

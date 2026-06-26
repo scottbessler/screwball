@@ -44,6 +44,7 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}/join", post(routes::join_game))
         .route("/games/{id}/state", get(routes::game_state))
         .route("/games/{id}/move", post(routes::submit_move))
+        .route("/games/{id}/hint", post(routes::hint))
         .nest_service("/public", ServeDir::new("public"))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

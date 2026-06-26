@@ -35,6 +35,7 @@ pub enum MoveError {
     NotConnected,
     NoWordFormed,
     InvalidWords(Vec<String>),
+    WordsTooShort(Vec<String>),
     CannotExchange,
     ExchangeTilesNotInRack,
 }
@@ -59,6 +60,9 @@ impl fmt::Display for MoveError {
                 write!(f, "the play must form a word of two or more letters")
             }
             MoveError::InvalidWords(words) => write!(f, "not in dictionary: {}", words.join(", ")),
+            MoveError::WordsTooShort(words) => {
+                write!(f, "too short for John Mode: {}", words.join(", "))
+            }
             MoveError::CannotExchange => {
                 write!(f, "cannot exchange when fewer than seven tiles remain")
             }
@@ -86,7 +90,12 @@ pub struct ScoredPlay {
     pub points: u32,
 }
 
-pub fn new_game(seats: Vec<SeatSpec>, rng: &mut impl Rng) -> Game {
+pub fn new_game(
+    seats: Vec<SeatSpec>,
+    john_mode: bool,
+    hints_allowed: u8,
+    rng: &mut impl Rng,
+) -> Game {
     let mut bag = bag::shuffled_bag(rng);
     let seats = seats
         .into_iter()
@@ -100,7 +109,8 @@ pub fn new_game(seats: Vec<SeatSpec>, rng: &mut impl Rng) -> Game {
                 score: 0,
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let seat_count = seats.len();
     Game {
         id: Uuid::new_v4(),
         status: GameStatus::Active,
@@ -111,6 +121,9 @@ pub fn new_game(seats: Vec<SeatSpec>, rng: &mut impl Rng) -> Game {
         moves: Vec::new(),
         consecutive_scoreless: 0,
         created_at: Utc::now(),
+        john_mode,
+        hints_allowed,
+        hints_used: vec![0; seat_count],
     }
 }
 
@@ -120,6 +133,7 @@ pub fn validate_play(
     rack: &[Tile],
     dict: &Dictionary,
     placements: &[Placement],
+    min_word_length: usize,
 ) -> Result<ScoredPlay, MoveError> {
     if placements.is_empty() {
         return Err(MoveError::EmptyPlay);
@@ -217,9 +231,14 @@ pub fn validate_play(
 
     let mut scored = Vec::with_capacity(words.len());
     let mut invalid = Vec::new();
+    let mut too_short = Vec::new();
     let mut total = 0u32;
     for cells in &words {
         let word = word_string(&scratch, cells);
+        if word.len() < min_word_length {
+            too_short.push(word);
+            continue;
+        }
         if !dict.contains(&word) {
             invalid.push(word.clone());
             continue;
@@ -227,6 +246,11 @@ pub fn validate_play(
         let points = score_word(&scratch, cells, &placed_set);
         total += points;
         scored.push(ScoredWord { word, points });
+    }
+    if !too_short.is_empty() {
+        too_short.sort();
+        too_short.dedup();
+        return Err(MoveError::WordsTooShort(too_short));
     }
     if !invalid.is_empty() {
         invalid.sort();
@@ -328,8 +352,13 @@ pub fn apply_move(
 
     let recorded = match kind {
         MoveKind::Play { placements } => {
-            let scored =
-                validate_play(&game.board, &game.seats[seat_index].rack, dict, &placements)?;
+            let scored = validate_play(
+                &game.board,
+                &game.seats[seat_index].rack,
+                dict,
+                &placements,
+                game.min_word_length(),
+            )?;
             for placement in &placements {
                 let needed = if placement.is_blank {
                     Tile::Blank

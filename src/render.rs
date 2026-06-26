@@ -165,6 +165,20 @@ fn new_game_form() -> String {
   <label>Seat 4
     <select name="seat4">{seat4}</select>
   </label>
+  <div class="form-options">
+    <label class="checkbox-label">
+      <input type="checkbox" name="john_mode" value="on" />
+      John Mode <span class="option-hint">(no 2-letter words)</span>
+    </label>
+    <label>Hints per player
+      <select name="hints">
+        <option value="0" selected>None</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+    </label>
+  </div>
   <button type="submit" class="button">Create game</button>
 </form>"#,
         seat2 = options(false).replace(
