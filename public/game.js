@@ -552,6 +552,7 @@ function JoinForm({ gameId }) {
 // fresh while you play, and excludes the game currently being viewed.
 function OtherGames({ gameId }) {
   const [games, setGames] = useState(null);
+  const prevTurnIds = useRef(null);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -559,7 +560,22 @@ function OtherGames({ gameId }) {
         const res = await fetch("/api/my-games");
         if (!res.ok) return;
         const data = await res.json();
-        if (active) setGames(data);
+        if (active) {
+          const others = data.filter((g) => g.id !== gameId);
+          const nowTurn = new Set(others.filter((g) => g.your_turn).map((g) => g.id));
+          if (prevTurnIds.current !== null) {
+            for (const g of others) {
+              if (g.your_turn && !prevTurnIds.current.has(g.id)) {
+                notifyTurn(
+                  `${g.players.join(" vs ")}`,
+                  `/games/${g.id}`,
+                );
+              }
+            }
+          }
+          prevTurnIds.current = nowTurn;
+          setGames(data);
+        }
       } catch (_) {
         /* transient network error; keep the last list */
       }
@@ -588,6 +604,29 @@ function OtherGames({ gameId }) {
       )}
     </ul>
   </div>`;
+}
+
+// -- Browser notifications --------------------------------------------------
+
+function requestNotificationPermission() {
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function notifyTurn(body, url) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (document.visibilityState === "visible") return;
+  const n = new Notification("Your turn!", {
+    body: body || "It's your turn in Screwball",
+    icon: "/public/apple-touch-icon.png",
+    tag: url || "screwball-turn",
+  });
+  n.onclick = () => {
+    if (url) window.location.href = url;
+    window.focus();
+    n.close();
+  };
 }
 
 const BASE_FAVICON = "/public/favicon.svg";
@@ -675,6 +714,14 @@ function App({ gameId, initial }) {
         const res = await fetch(`/games/${gameId}/state`);
         if (!res.ok) return;
         const next = await res.json();
+        if (isYourTurn(next)) {
+          const who = next.moves.length
+            ? next.seats[next.moves[next.moves.length - 1].seat]?.name
+            : null;
+          notifyTurn(
+            who ? `${who} just played` : "It's your turn in Screwball",
+          );
+        }
         setGame(next);
       } catch (_) {
         /* transient network error; keep polling */
@@ -981,6 +1028,7 @@ function App({ gameId, initial }) {
     setBusy(true);
     setError(null);
     try {
+      requestNotificationPermission();
       const res = await fetch(`/games/${gameId}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
