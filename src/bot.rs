@@ -57,7 +57,12 @@ fn position(transposed: bool, line: usize, idx: usize) -> Position {
 /// For each empty square, the bitmask of letters that form a valid word in the
 /// cross (perpendicular) direction given its neighbors. Squares with no
 /// perpendicular neighbor allow every letter.
-fn cross_masks(board: &Board, dict: &Dictionary, cross_dir: (isize, isize)) -> Vec<u32> {
+fn cross_masks(
+    board: &Board,
+    dict: &Dictionary,
+    cross_dir: (isize, isize),
+    min_word_length: usize,
+) -> Vec<u32> {
     let (d_row, d_col) = cross_dir;
     let mut masks = vec![0u32; BOARD_SIZE * BOARD_SIZE];
     for row in 0..BOARD_SIZE {
@@ -70,6 +75,10 @@ fn cross_masks(board: &Board, dict: &Dictionary, cross_dir: (isize, isize)) -> V
             let suffix = collect_letters(board, pos, (d_row, d_col), false);
             if prefix.is_empty() && suffix.is_empty() {
                 masks[pos.index()] = ALL_LETTERS;
+                continue;
+            }
+            if prefix.len() + 1 + suffix.len() < min_word_length {
+                masks[pos.index()] = 0;
                 continue;
             }
             let mut mask = 0u32;
@@ -214,7 +223,12 @@ impl Generator<'_> {
 }
 
 /// Enumerate every legal play for `rack` against `board`, deduplicated.
-pub fn generate_plays(board: &Board, rack: &[Tile], dict: &Dictionary) -> Vec<Vec<Placement>> {
+pub fn generate_plays(
+    board: &Board,
+    rack: &[Tile],
+    dict: &Dictionary,
+    min_word_length: usize,
+) -> Vec<Vec<Placement>> {
     let rack_counts = RackCounts::from_rack(rack);
     let rack_size = rack_counts.total().min(RACK_SIZE);
     let anchors = anchors(board);
@@ -222,7 +236,7 @@ pub fn generate_plays(board: &Board, rack: &[Tile], dict: &Dictionary) -> Vec<Ve
 
     for transposed in [false, true] {
         let cross_dir = if transposed { (0, 1) } else { (1, 0) };
-        let masks = cross_masks(board, dict, cross_dir);
+        let masks = cross_masks(board, dict, cross_dir, min_word_length);
         let mut generator = Generator {
             board,
             dict,
@@ -255,11 +269,12 @@ pub fn scored_plays(
     board: &Board,
     rack: &[Tile],
     dict: &Dictionary,
+    min_word_length: usize,
 ) -> Vec<(Vec<Placement>, ScoredPlay)> {
-    generate_plays(board, rack, dict)
+    generate_plays(board, rack, dict, min_word_length)
         .into_iter()
         .filter_map(|placements| {
-            validate_play(board, rack, dict, &placements)
+            validate_play(board, rack, dict, &placements, min_word_length)
                 .ok()
                 .map(|scored| (placements, scored))
         })
@@ -274,7 +289,7 @@ pub fn choose_move(
     rng: &mut impl Rng,
 ) -> MoveKind {
     let seat = &game.seats[seat_index];
-    let mut plays = scored_plays(&game.board, &seat.rack, dict);
+    let mut plays = scored_plays(&game.board, &seat.rack, dict, game.min_word_length());
     if plays.is_empty() {
         if game.bag.len() >= RACK_SIZE {
             return MoveKind::Exchange {

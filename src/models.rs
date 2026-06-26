@@ -187,4 +187,17 @@ pub struct Game {
     pub moves: Vec<Move>,
     pub consecutive_scoreless: u8,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub john_mode: bool,
+    #[serde(default)]
+    pub hints_allowed: u8,
+    #[serde(default)]
+    pub hints_used: Vec<u8>,
+}
+
+impl Game {
+    /// Minimum word length: 3 in John Mode, 2 normally.
+    pub fn min_word_length(&self) -> usize {
+        if self.john_mode { 3 } else { 2 }
+    }
 }

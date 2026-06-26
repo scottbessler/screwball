@@ -28,7 +28,7 @@ fn first_move_scores_center_double_word() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A'), letter('T'), letter('X')];
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
-    let scored = validate_play(&board, &rack, &dict(), &placements).expect("valid play");
+    let scored = validate_play(&board, &rack, &dict(), &placements, 2).expect("valid play");
     assert_eq!(scored.words.len(), 1);
     assert_eq!(scored.words[0].word, "CAT");
     // C(3)+A(1)+T(1) = 5, doubled by the center star = 10.
@@ -40,7 +40,7 @@ fn first_move_must_cover_center() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A'), letter('T')];
     let placements = vec![place(0, 0, 'C'), place(0, 1, 'A'), place(0, 2, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements).unwrap_err();
+    let err = validate_play(&board, &rack, &dict(), &placements, 2).unwrap_err();
     assert_eq!(err, MoveError::FirstMoveMustCoverCenter);
 }
 
@@ -49,7 +49,7 @@ fn rejects_words_not_in_dictionary() {
     let board = Board::new();
     let rack = vec![letter('X'), letter('Y'), letter('Z')];
     let placements = vec![place(7, 6, 'X'), place(7, 7, 'Y'), place(7, 8, 'Z')];
-    let err = validate_play(&board, &rack, &dict(), &placements).unwrap_err();
+    let err = validate_play(&board, &rack, &dict(), &placements, 2).unwrap_err();
     assert!(matches!(err, MoveError::InvalidWords(_)));
 }
 
@@ -58,7 +58,7 @@ fn rejects_tiles_not_in_rack() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A')];
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements).unwrap_err();
+    let err = validate_play(&board, &rack, &dict(), &placements, 2).unwrap_err();
     assert_eq!(err, MoveError::TilesNotInRack);
 }
 
@@ -68,7 +68,7 @@ fn rejects_non_contiguous_placement() {
     let rack = vec![letter('C'), letter('A'), letter('T')];
     // Gap at (7,7): tiles at cols 6 and 8 with nothing between.
     let placements = vec![place(7, 6, 'C'), place(7, 8, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements).unwrap_err();
+    let err = validate_play(&board, &rack, &dict(), &placements, 2).unwrap_err();
     assert_eq!(err, MoveError::NotContiguous);
 }
 
@@ -84,7 +84,7 @@ fn second_move_must_connect() {
     // A HAT placed far away, touching nothing, must be rejected.
     let rack = vec![letter('H'), letter('A'), letter('T')];
     let placements = vec![place(0, 0, 'H'), place(0, 1, 'A'), place(0, 2, 'T')];
-    let err = validate_play(&game.board, &rack, &dict(), &placements).unwrap_err();
+    let err = validate_play(&game.board, &rack, &dict(), &placements, 2).unwrap_err();
     assert_eq!(err, MoveError::NotConnected);
 }
 
@@ -98,7 +98,7 @@ fn cross_word_play_scores_both_words() {
     play_first_cat(&mut game);
     // Seat 1 hangs an S under the center A to form "AS" vertically.
     let placements = vec![place(8, 7, 'S')];
-    let scored = validate_play(&game.board, &game.seats[1].rack, &dict(), &placements)
+    let scored = validate_play(&game.board, &game.seats[1].rack, &dict(), &placements, 2)
         .expect("connecting play");
     assert!(scored.words.iter().any(|w| w.word == "AS"));
 }
@@ -116,7 +116,7 @@ fn bingo_awards_fifty_point_bonus() {
         letter('A'),
     ];
     let placements: Vec<Placement> = (4..=10).map(|col| place(7, col, 'A')).collect();
-    let scored = validate_play(&board, &rack, &dict(), &placements).expect("seven-tile play");
+    let scored = validate_play(&board, &rack, &dict(), &placements, 2).expect("seven-tile play");
     // 7 x A(1) = 7, doubled by center = 14, plus 50 bingo bonus = 64.
     assert_eq!(scored.points, 64);
 }
@@ -217,7 +217,7 @@ fn new_game_deals_full_racks() {
             name: "Bot".into(),
         },
     ];
-    let game = new_game(specs, &mut rng);
+    let game = new_game(specs, false, 0, &mut rng);
     assert_eq!(game.seats.len(), 2);
     assert_eq!(game.seats[0].rack.len(), 7);
     assert_eq!(game.seats[1].rack.len(), 7);
@@ -237,7 +237,8 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
             rack,
             score,
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let seat_count = seats.len();
     Game {
         id: Uuid::new_v4(),
         status: GameStatus::Active,
@@ -248,6 +249,9 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
         moves: Vec::new(),
         consecutive_scoreless: 0,
         created_at: Utc::now(),
+        john_mode: false,
+        hints_allowed: 0,
+        hints_used: vec![0; seat_count],
     }
 }
 
