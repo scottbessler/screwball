@@ -82,12 +82,14 @@ impl GameStore {
     /// atomically with respect to other requests for the same game.
     pub async fn update<R>(&self, id: Uuid, f: impl FnOnce(&mut Game) -> R) -> Result<R, AppError> {
         let mut guard = self.games.lock().await;
-        let mut working = guard
+        let original = guard
             .get(&id)
-            .ok_or_else(|| AppError::not_found("game not found"))?
-            .clone();
+            .ok_or_else(|| AppError::not_found("game not found"))?;
+        let mut working = original.clone();
         let outcome = f(&mut working);
-        working.updated_at = Utc::now();
+        if working != *original {
+            working.updated_at = Utc::now();
+        }
         self.persist(&working).await?;
         guard.insert(id, working);
         Ok(outcome)
