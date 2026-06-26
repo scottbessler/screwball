@@ -160,7 +160,7 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
     const s = scaleRef.current;
     const { x, y } = panRef.current;
     boardRef.current.style.transform = s === 1 && x === 0 && y === 0
-      ? "" : `scale(${s}) translate(${x}px, ${y}px)`;
+      ? "" : `translate(${x}px, ${y}px) scale(${s})`;
   }
 
   function handleBoardTouchStart(e) {
@@ -205,8 +205,8 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile 
       if (Math.abs(dx) + Math.abs(dy) > 5) {
         e.preventDefault();
         panRef.current = {
-          x: panStartRef.current.basePanX + dx / scaleRef.current,
-          y: panStartRef.current.basePanY + dy / scaleRef.current,
+          x: panStartRef.current.basePanX + dx,
+          y: panStartRef.current.basePanY + dy,
         };
         applyTransform();
       }
