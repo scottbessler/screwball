@@ -121,6 +121,7 @@ pub fn new_game(
         moves: Vec::new(),
         consecutive_scoreless: 0,
         created_at: Utc::now(),
+        updated_at: Utc::now(),
         john_mode,
         hints_allowed,
         hints_used: vec![0; seat_count],

@@ -40,6 +40,7 @@ fn bot_game(racks: &[&str], difficulty: Difficulty) -> Game {
         moves: Vec::new(),
         consecutive_scoreless: 0,
         created_at: Utc::now(),
+        updated_at: Utc::now(),
         john_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; racks.len()],

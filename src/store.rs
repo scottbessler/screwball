@@ -4,6 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use chrono::Utc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -86,6 +87,7 @@ impl GameStore {
             .ok_or_else(|| AppError::not_found("game not found"))?
             .clone();
         let outcome = f(&mut working);
+        working.updated_at = Utc::now();
         self.persist(&working).await?;
         guard.insert(id, working);
         Ok(outcome)
