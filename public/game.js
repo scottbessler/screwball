@@ -109,9 +109,9 @@ function Tile({ letter, isBlank, points, pending, onClick }) {
   </span>`;
 }
 
-function Cell({ square, pending, row, col, cursor, onClick }) {
+function Cell({ square, pending, row, col, cursor, onClick, onDragOver, onDrop }) {
   if (square.letter) {
-    return html`<div class="cell tile">
+    return html`<div class="cell tile" data-row=${row} data-col=${col}>
       <${Tile}
         letter=${square.letter}
         isBlank=${square.is_blank}
@@ -120,7 +120,7 @@ function Cell({ square, pending, row, col, cursor, onClick }) {
     </div>`;
   }
   if (pending) {
-    return html`<div class="cell tile" onClick=${onClick}>
+    return html`<div class="cell tile" data-row=${row} data-col=${col} onClick=${onClick}>
       <${Tile}
         letter=${pending.letter}
         isBlank=${pending.isBlank}
@@ -139,20 +139,90 @@ function Cell({ square, pending, row, col, cursor, onClick }) {
     .filter(Boolean)
     .join(" ");
   const star = row === CENTER && col === CENTER ? "★" : PREMIUM_LABEL[premium];
-  return html`<div class=${cls} onClick=${onClick}>
+  return html`<div class=${cls} data-row=${row} data-col=${col} onClick=${onClick}
+    onDragOver=${onDragOver} onDrop=${onDrop}>
     ${isCursor
       ? html`<span class="cursor-arrow">${cursor.dir === "down" ? "↓" : "→"}</span>`
       : html`<span class="premium-label">${star}</span>`}
   </div>`;
 }
 
-function Board({ game, pending, cursor, onCellClick, onPendingClick }) {
+function Board({ game, pending, cursor, onCellClick, onPendingClick, onDropTile }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
+  const boardRef = useRef(null);
+  const pinchState = useRef(null);
+  const scaleRef = useRef(1);
+  const originRef = useRef({ x: 50, y: 50 });
+
+  function handleBoardTouchStart(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      pinchState.current = {
+        dist: Math.hypot(dx, dy),
+        baseScale: scaleRef.current,
+        midX,
+        midY,
+      };
+    }
+  }
+
+  function handleBoardTouchMove(e) {
+    if (e.touches.length === 2 && pinchState.current) {
+      e.preventDefault();
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / pinchState.current.dist;
+      const newScale = Math.min(Math.max(pinchState.current.baseScale * ratio, 1), 3);
+      scaleRef.current = newScale;
+      // Calculate origin relative to board element
+      const rect = boardRef.current.getBoundingClientRect();
+      const ox = ((pinchState.current.midX - rect.left) / rect.width) * 100;
+      const oy = ((pinchState.current.midY - rect.top) / rect.height) * 100;
+      originRef.current = { x: ox, y: oy };
+      boardRef.current.style.transform = `scale(${newScale})`;
+      boardRef.current.style.transformOrigin = `${ox}% ${oy}%`;
+    }
+  }
+
+  function handleBoardTouchEnd(e) {
+    if (e.touches.length < 2) {
+      pinchState.current = null;
+      // Snap back to 1 if close
+      if (scaleRef.current < 1.1) {
+        scaleRef.current = 1;
+        if (boardRef.current) {
+          boardRef.current.style.transform = "";
+          boardRef.current.style.transformOrigin = "";
+        }
+      }
+    }
+  }
+
+  // Double-tap to reset zoom
+  const lastTapRef = useRef(0);
+  function handleDoubleTap(e) {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300 && e.touches.length === 1) {
+      scaleRef.current = 1;
+      if (boardRef.current) {
+        boardRef.current.style.transform = "";
+        boardRef.current.style.transformOrigin = "";
+      }
+    }
+    lastTapRef.current = now;
+  }
+
   const cells = [];
   for (let row = 0; row < SIZE; row++) {
     for (let col = 0; col < SIZE; col++) {
       const i = idx(row, col);
       const place = byPos.get(i);
+      const isEmpty = !game.board[i].letter && !place;
       cells.push(
         html`<${Cell}
           key=${i}
@@ -163,14 +233,24 @@ function Board({ game, pending, cursor, onCellClick, onPendingClick }) {
           cursor=${cursor}
           onClick=${() =>
             place ? onPendingClick(place) : onCellClick(row, col)}
+          onDragOver=${isEmpty ? (e) => e.preventDefault() : null}
+          onDrop=${isEmpty ? (e) => {
+            e.preventDefault();
+            const tileId = Number(e.dataTransfer.getData("text/plain"));
+            if (onDropTile) onDropTile(tileId, row, col);
+          } : null}
         />`,
       );
     }
   }
-  return html`<div class="board" role="grid">${cells}</div>`;
+  return html`<div class="board" role="grid" ref=${boardRef}
+    onTouchStart=${(e) => { handleDoubleTap(e); handleBoardTouchStart(e); }}
+    onTouchMove=${handleBoardTouchMove}
+    onTouchEnd=${handleBoardTouchEnd}
+  >${cells}</div>`;
 }
 
-function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
+function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard }) {
   const dragId = useRef(null);
   const touchState = useRef(null);
   const rackRef = useRef(null);
@@ -210,6 +290,11 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
         ghost.style.left = touch.clientX + "px";
         ghost.style.top = touch.clientY + "px";
       }
+      // Clear previous highlight
+      if (touchState.current.highlightedCell) {
+        touchState.current.highlightedCell.classList.remove("drag-over");
+        touchState.current.highlightedCell = null;
+      }
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
       if (el) {
         const btn = el.closest(".rack-tile");
@@ -219,6 +304,12 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
             onReorder(touchState.current.id, targetId);
             touchState.current.id = targetId;
           }
+        }
+        // Highlight board cell
+        const cell = el.closest(".cell");
+        if (cell && cell.dataset.row != null && !cell.classList.contains("tile")) {
+          cell.classList.add("drag-over");
+          touchState.current.highlightedCell = cell;
         }
       }
     }
@@ -232,7 +323,25 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder }) {
       if (touchState.current.sourceEl) {
         touchState.current.sourceEl.classList.remove("dragging");
       }
-      if (!touchState.current.dragging) {
+      if (touchState.current.highlightedCell) {
+        touchState.current.highlightedCell.classList.remove("drag-over");
+      }
+      if (touchState.current.dragging) {
+        // Check if dropped on a board cell
+        const lastTouch = e.changedTouches[0];
+        const el = document.elementFromPoint(lastTouch.clientX, lastTouch.clientY);
+        if (el) {
+          const cell = el.closest(".cell");
+          if (cell && cell.dataset.row != null && cell.dataset.col != null) {
+            const row = Number(cell.dataset.row);
+            const col = Number(cell.dataset.col);
+            const tile = tiles.find((t) => t.id === touchState.current.id);
+            if (tile && onPlaceOnBoard) {
+              onPlaceOnBoard(tile, row, col);
+            }
+          }
+        }
+      } else {
         e.preventDefault();
         const tile = tiles.find((t) => t.id === touchState.current.id);
         if (tile) onSelect(tile);
@@ -548,6 +657,30 @@ function App({ gameId, initial }) {
       setExchange(next);
       return;
     }
+    // Tap-to-place: if cursor is set, tapping a rack tile places it directly
+    if (cursor && mode === "place") {
+      if (tile.is_blank) {
+        setBlankPrompt({ row: cursor.row, col: cursor.col, rackId: tile.id });
+        return;
+      }
+      const target = firstEmptyFrom(cursor.row, cursor.col, cursor.dir, pending);
+      if (!target) {
+        setError("No room to place a tile that way.");
+        return;
+      }
+      const next = [
+        ...pending,
+        { row: target.row, col: target.col, letter: tile.letter, isBlank: false, rackId: tile.id },
+      ];
+      setPending(next);
+      const after =
+        cursor.dir === "down"
+          ? { r: target.row + 1, c: target.col }
+          : { r: target.row, c: target.col + 1 };
+      const advanced = firstEmptyFrom(after.r, after.c, cursor.dir, next);
+      setCursor(advanced ? { ...advanced, dir: cursor.dir } : cursor);
+      return;
+    }
     setSelected((prev) => (prev === tile.id ? null : tile.id));
   }
 
@@ -693,6 +826,39 @@ function App({ gameId, initial }) {
     setPending(pending.filter((p) => p.rackId !== place.rackId));
   }
 
+  function placeTileOnBoard(tile, row, col) {
+    if (!yourTurn || mode !== "place") return;
+    if (game.board[idx(row, col)].letter) return;
+    if (pending.some((p) => p.row === row && p.col === col)) return;
+    if (tile.is_blank) {
+      setBlankPrompt({ row, col, rackId: tile.id });
+      return;
+    }
+    setPending([
+      ...pending,
+      { row, col, letter: tile.letter, isBlank: false, rackId: tile.id },
+    ]);
+    setSelected(null);
+  }
+
+  function dropTileOnBoard(tileId, row, col) {
+    if (!yourTurn || mode !== "place") return;
+    const tile = rackTiles[tileId];
+    if (!tile) return;
+    if (game.board[idx(row, col)].letter) return;
+    if (pending.some((p) => p.row === row && p.col === col)) return;
+    if (pending.some((p) => p.rackId === tileId)) return;
+    if (tile.is_blank) {
+      setBlankPrompt({ row, col, rackId: tileId });
+      return;
+    }
+    setPending([
+      ...pending,
+      { row, col, letter: tile.letter, isBlank: tile.is_blank, rackId: tileId },
+    ]);
+    setSelected(null);
+  }
+
   async function postMove(body) {
     setBusy(true);
     setError(null);
@@ -774,6 +940,7 @@ function App({ gameId, initial }) {
           cursor=${yourTurn && mode === "place" ? cursor : null}
           onCellClick=${onCellClick}
           onPendingClick=${recallTile}
+          onDropTile=${dropTileOnBoard}
         />
         ${!seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null}
         ${seated && !finished
@@ -785,6 +952,7 @@ function App({ gameId, initial }) {
                 exchange=${exchange}
                 onSelect=${selectTile}
                 onReorder=${reorderRack}
+                onPlaceOnBoard=${placeTileOnBoard}
               />
               ${error ? html`<p class="move-error">${error}</p>` : null}
               <div class="controls">
@@ -904,6 +1072,8 @@ function boot() {
       if (window.innerWidth > 480) return;
       if (e.target.closest(".modal-backdrop")) return;
       if (e.target.closest(".sidebar")) return;
+      // Allow pinch-to-zoom on the board
+      if (e.touches.length >= 2 && e.target.closest(".board")) return;
       e.preventDefault();
     },
     { passive: false },
