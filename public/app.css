@@ -334,6 +334,7 @@ section.card + section.card {
 .game .board { cursor: default; }
 
 .game .cell:not(.tile) { cursor: pointer; }
+.cell.drag-over { background: var(--accent); opacity: 0.4; }
 
 .rack-area {
   margin-top: 1rem;
@@ -659,6 +660,7 @@ section.card + section.card {
     justify-content: center;
     min-height: 0;
     width: 100%;
+    overflow: hidden;
   }
 
   .board {
@@ -670,6 +672,7 @@ section.card + section.card {
     padding: 1px;
     border-width: 1px;
     touch-action: none;
+    overflow: visible;
   }
 
   .rack-area {
