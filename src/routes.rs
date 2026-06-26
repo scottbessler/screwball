@@ -384,86 +384,93 @@ pub async fn hint(
     ApiAuthUser(user): ApiAuthUser,
     Path(id): Path<Uuid>,
 ) -> Response {
-    let game = match state.store.get(id).await {
-        Some(game) => game,
-        None => return move_error(StatusCode::NOT_FOUND, "game not found"),
-    };
+    let dict = state.dict.clone();
+    let result = state
+        .store
+        .update(id, move |game| apply_hint(game, &dict, user))
+        .await;
 
+    match result {
+        Ok(Ok(value)) => (StatusCode::OK, Json(value)).into_response(),
+        Ok(Err(api)) => move_error(api.status, &api.message),
+        Err(err) => err.into_response(),
+    }
+}
+
+fn apply_hint(
+    game: &mut Game,
+    dict: &crate::dict::Dictionary,
+    user: Uuid,
+) -> Result<serde_json::Value, ApiMoveError> {
     if game.status != GameStatus::Active {
-        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "the game is not active");
+        return Err(ApiMoveError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message: "the game is not active".into(),
+        });
     }
 
-    let seat_index = match game.seats.iter().position(|seat| match seat.kind {
-        SeatKind::Human { user_id } => user_id == Some(user),
-        SeatKind::Bot { .. } => false,
-    }) {
-        Some(i) => i,
-        None => return move_error(StatusCode::FORBIDDEN, "you are not seated in this game"),
-    };
+    let seat_index = game
+        .seats
+        .iter()
+        .position(|seat| matches!(seat.kind, SeatKind::Human { user_id } if user_id == Some(user)))
+        .ok_or_else(|| ApiMoveError {
+            status: StatusCode::FORBIDDEN,
+            message: "you are not seated in this game".into(),
+        })?;
 
     if seat_index != game.turn {
-        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "it is not your turn");
+        return Err(ApiMoveError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message: "it is not your turn".into(),
+        });
     }
 
     if game.hints_allowed == 0 {
-        return move_error(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "hints are not enabled for this game",
-        );
+        return Err(ApiMoveError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message: "hints are not enabled for this game".into(),
+        });
     }
 
-    let used = game.hints_used.get(seat_index).copied().unwrap_or(0);
+    if game.hints_used.len() <= seat_index {
+        game.hints_used.resize(game.seats.len(), 0);
+    }
+
+    let used = game.hints_used[seat_index];
     if used >= game.hints_allowed {
-        return move_error(StatusCode::UNPROCESSABLE_ENTITY, "no hints remaining");
+        return Err(ApiMoveError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message: "no hints remaining".into(),
+        });
     }
 
     let min_word_length = game.min_word_length();
     let plays = bot::scored_plays(
         &game.board,
         &game.seats[seat_index].rack,
-        &state.dict,
+        dict,
         min_word_length,
     );
-
     let best = plays.iter().max_by_key(|p| p.1.points);
 
-    let remaining = match best {
+    match best {
         Some((_, scored)) => {
-            let _ = state
-                .store
-                .update(id, move |game| {
-                    if game.hints_used.len() <= seat_index {
-                        game.hints_used.resize(game.seats.len(), 0);
-                    }
-                    game.hints_used[seat_index] += 1;
-                })
-                .await;
-
-            let remaining = game.hints_allowed - used - 1;
+            game.hints_used[seat_index] += 1;
+            let remaining = game.hints_allowed - game.hints_used[seat_index];
             let words: Vec<&str> = scored.words.iter().map(|w| w.word.as_str()).collect();
-            return (
-                StatusCode::OK,
-                Json(json!({
-                    "words": words,
-                    "score": scored.points,
-                    "remaining": remaining
-                })),
-            )
-                .into_response();
+            Ok(json!({
+                "words": words,
+                "score": scored.points,
+                "remaining": remaining
+            }))
         }
-        None => game.hints_allowed - used,
-    };
-
-    (
-        StatusCode::OK,
-        Json(json!({
+        None => Ok(json!({
             "words": [],
             "score": 0,
-            "remaining": remaining,
+            "remaining": game.hints_allowed - used,
             "message": "no plays available"
         })),
-    )
-        .into_response()
+    }
 }
 
 fn move_error(status: StatusCode, message: &str) -> Response {
