@@ -45,6 +45,7 @@ async fn test_app() -> TestApp {
         users: users.clone(),
         webauthn,
         key: key.clone(),
+        passkey_disabled: false,
     };
     TestApp {
         router: app::router(state),

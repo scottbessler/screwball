@@ -19,6 +19,9 @@ pub struct AppState {
     pub users: Arc<UserStore>,
     pub webauthn: Arc<Webauthn>,
     pub key: Key,
+    /// When set, auth skips the WebAuthn ceremony and trusts the username alone.
+    /// Dev-only escape hatch — browsers dislike passkeys on localhost.
+    pub passkey_disabled: bool,
 }
 
 /// Lets the signed-cookie extractors pull the signing key out of `AppState`.
@@ -65,6 +68,10 @@ pub async fn run() -> Result<()> {
 
     let webauthn = Arc::new(build_webauthn()?);
     let key = load_key();
+    let passkey_disabled = env_flag("PASSKEY_DISABLED");
+    if passkey_disabled {
+        tracing::warn!("PASSKEY_DISABLED set; auth trusts username only (dev mode)");
+    }
 
     let app = router(AppState {
         dict,
@@ -72,6 +79,7 @@ pub async fn run() -> Result<()> {
         users,
         webauthn,
         key,
+        passkey_disabled,
     });
 
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
@@ -96,6 +104,15 @@ pub fn build_webauthn() -> Result<Webauthn> {
         .rp_name("Screwball")
         .build()
         .context("failed to build WebAuthn relying party")
+}
+
+/// Read a boolean env flag (`1`/`true`, case-insensitive); absent or anything
+/// else is false.
+fn env_flag(name: &str) -> bool {
+    matches!(
+        env::var(name).as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("True")
+    )
 }
 
 /// Derive the cookie-signing key from `SESSION_SECRET`. Falls back to an

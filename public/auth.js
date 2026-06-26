@@ -102,6 +102,8 @@ async function register(username, displayName) {
     username,
     display_name: displayName || null,
   });
+  // Dev mode (PASSKEY_DISABLED): server signs us in, no ceremony to run.
+  if (!challenge.publicKey) return;
   const credential = await navigator.credentials.create({
     publicKey: prepCreation(challenge.publicKey),
   });
@@ -110,6 +112,7 @@ async function register(username, displayName) {
 
 async function login(username) {
   const challenge = await postJson("/auth/login/begin", { username });
+  if (!challenge.publicKey) return;
   const credential = await navigator.credentials.get({
     publicKey: prepRequest(challenge.publicKey),
   });

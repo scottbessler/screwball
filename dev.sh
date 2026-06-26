@@ -9,6 +9,9 @@ WATCH_PATHS="${WATCH_PATHS:-src public Cargo.toml Cargo.lock}"
 POLL_INTERVAL="${POLL_INTERVAL:-1}"
 DEV_CMD="${DEV_CMD:-cargo run}"
 
+# Browsers balk at passkeys on localhost; trust the username alone in dev.
+export PASSKEY_DISABLED="${PASSKEY_DISABLED:-1}"
+
 if [ "${1:-}" = "--" ]; then
 	shift
 	DEV_CMD="$*"

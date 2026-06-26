@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
 use uuid::Uuid;
 use webauthn_rs::prelude::{
-    CreationChallengeResponse, PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential,
-    RegisterPublicKeyCredential, RequestChallengeResponse,
+    PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential,
 };
 
 use crate::{
@@ -98,7 +97,7 @@ pub async fn register_begin(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     Json(body): Json<RegisterBegin>,
-) -> Result<(SignedCookieJar, Json<CreationChallengeResponse>), AuthReject> {
+) -> Result<Response, AuthReject> {
     let username = clean(&body.username, MAX_USERNAME)
         .ok_or_else(|| AuthReject::bad_request("pick a username (1–32 characters)"))?;
     let display_name = body
@@ -114,6 +113,22 @@ pub async fn register_begin(
         ));
     }
 
+    // Dev mode: no passkey, just create the account and sign in.
+    if state.passkey_disabled {
+        let user_id = Uuid::new_v4();
+        let user = User {
+            id: user_id,
+            username,
+            display_name,
+            credentials: vec![],
+            created_at: Utc::now(),
+        };
+        let display_name = user.display_name.clone();
+        state.users.insert(user).await?;
+        let jar = jar.add(session_cookie(user_id));
+        return Ok((jar, Json(json!({ "display_name": display_name }))).into_response());
+    }
+
     let user_id = Uuid::new_v4();
     let (challenge, state_token) = state
         .webauthn
@@ -127,7 +142,7 @@ pub async fn register_begin(
         state: state_token,
     };
     let jar = jar.add(state_cookie(REG_COOKIE, &pending)?);
-    Ok((jar, Json(challenge)))
+    Ok((jar, Json(challenge)).into_response())
 }
 
 /// Finish registration: verify the attestation, persist the new user with their
@@ -166,7 +181,7 @@ pub async fn login_begin(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     Json(body): Json<LoginBegin>,
-) -> Result<(SignedCookieJar, Json<RequestChallengeResponse>), AuthReject> {
+) -> Result<Response, AuthReject> {
     let username = clean(&body.username, MAX_USERNAME)
         .ok_or_else(|| AuthReject::bad_request("enter your username"))?;
     let user = state
@@ -174,6 +189,13 @@ pub async fn login_begin(
         .get_by_username(&username)
         .await
         .ok_or_else(|| AuthReject::new(StatusCode::NOT_FOUND, "no account with that username"))?;
+
+    // Dev mode: skip the passkey assertion, sign in on username alone.
+    if state.passkey_disabled {
+        let jar = jar.add(session_cookie(user.id));
+        return Ok((jar, Json(json!({ "display_name": user.display_name }))).into_response());
+    }
+
     if user.credentials.is_empty() {
         return Err(AuthReject::bad_request(
             "that account has no passkeys registered",
@@ -190,7 +212,7 @@ pub async fn login_begin(
         state: state_token,
     };
     let jar = jar.add(state_cookie(AUTH_COOKIE, &pending)?);
-    Ok((jar, Json(challenge)))
+    Ok((jar, Json(challenge)).into_response())
 }
 
 /// Finish login: verify the assertion, bump the credential counter, and sign in.
