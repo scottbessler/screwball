@@ -336,6 +336,15 @@ section.card + section.card {
 .game .cell:not(.tile) { cursor: pointer; }
 .cell.drag-over { background: var(--accent); opacity: 0.4; }
 
+@keyframes tile-pop {
+  0% { transform: scale(0.85); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.rack-tile.reorder-pop {
+  animation: tile-pop 0.2s ease;
+}
+
 .rack-area {
   margin-top: 1rem;
 }
@@ -364,6 +373,7 @@ section.card + section.card {
   align-items: center;
   justify-content: center;
   text-transform: uppercase;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .rack-tile .tile-letter { font-size: 1.1rem; }
@@ -629,7 +639,13 @@ section.card + section.card {
     background: var(--bg);
   }
 
-  .game .status { display: none; }
+  .game .status {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    margin: 0;
+    text-align: center;
+    opacity: 0.8;
+  }
 
   .game-layout {
     flex-direction: column;
@@ -661,6 +677,8 @@ section.card + section.card {
     min-height: 0;
     width: 100%;
     overflow: hidden;
+    position: relative;
+    z-index: 0;
   }
 
   .board {
@@ -678,6 +696,8 @@ section.card + section.card {
   .rack-area {
     margin-top: 0.4rem;
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
   }
 
   .rack {
