@@ -13,10 +13,10 @@ pub fn escape(input: &str) -> String {
 }
 
 pub fn layout(title: &str, body: &str) -> String {
-    layout_with_head(title, body, "")
+    layout_with_head(title, body, "", "")
 }
 
-fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
+fn layout_with_head(title: &str, body: &str, head_extra: &str, body_class: &str) -> String {
     format!(
         r#"<!doctype html>
 <html lang="en">
@@ -32,7 +32,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
   <link rel="stylesheet" href="/public/app.css">
   {head_extra}
 </head>
-<body>
+<body class="{body_class}">
   {nav}
   <main class="page">
   {body}
@@ -41,6 +41,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str) -> String {
 </html>"#,
         title = escape(title),
         head_extra = head_extra,
+        body_class = body_class,
         nav = nav(),
         body = body,
     )
@@ -77,6 +78,7 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
             "Screwball",
             &signed_out_panel(),
             r#"<script type="module" src="/public/auth.js" defer></script>"#,
+            "",
         );
     };
     let new_game = new_game_form();
@@ -273,7 +275,7 @@ pub fn game_page(
 </section>"#,
         id = view.id,
     );
-    layout_with_head("Game — Screwball", &body, head)
+    layout_with_head("Game — Screwball", &body, head, "game-page")
 }
 
 fn render_join_form(view: &GameView) -> String {

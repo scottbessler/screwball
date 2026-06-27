@@ -635,7 +635,11 @@ section.card + section.card {
 
 /* Game-page mobile: full-bleed, no-scroll, optimized for iPhone 15 Pro */
 @media (max-width: 480px) {
-  html, body {
+  /* Game board page only: lock to a single non-scrolling viewport. Other
+     pages (home, setup, auth) keep normal flow so their cards can scroll and
+     buttons aren't clipped. */
+  body.game-page,
+  html:has(body.game-page) {
     height: 100dvh;
     height: -webkit-fill-available;
     overflow: hidden;
@@ -647,7 +651,7 @@ section.card + section.card {
     font-size: 0.9rem;
   }
 
-  .page {
+  .game-page .page {
     padding: 0;
     max-width: none;
     height: calc(100dvh - 41px);
@@ -656,7 +660,7 @@ section.card + section.card {
     overflow: hidden;
   }
 
-  .page > .card {
+  .game-page .page > .card {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
