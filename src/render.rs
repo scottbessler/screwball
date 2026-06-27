@@ -1,7 +1,27 @@
+use std::sync::OnceLock;
+
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
 use crate::view::{GameSummary, GameView, SquareView, premium_code};
+
+/// Content-hash of the static assets, set once at startup. Appended to asset
+/// URLs as `?v=…` so a deploy busts aggressive (PWA) caches without touching
+/// filenames. Empty until set.
+static ASSET_VERSION: OnceLock<String> = OnceLock::new();
+
+pub fn set_asset_version(version: String) {
+    let _ = ASSET_VERSION.set(version);
+}
+
+fn asset_version() -> &'static str {
+    ASSET_VERSION.get().map(String::as_str).unwrap_or("dev")
+}
+
+/// A `/public/...` URL with the current asset version appended for cache-busting.
+fn asset(path: &str) -> String {
+    format!("{path}?v={}", asset_version())
+}
 
 pub fn escape(input: &str) -> String {
     input
@@ -29,7 +49,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str, body_class: &str)
   <link rel="icon" href="/public/favicon.svg">
   <link rel="apple-touch-icon" href="/public/apple-touch-icon.png">
   <link rel="manifest" href="/public/manifest.webmanifest">
-  <link rel="stylesheet" href="/public/app.css">
+  <link rel="stylesheet" href="{css}">
   {head_extra}
 </head>
 <body class="{body_class}">
@@ -40,6 +60,7 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str, body_class: &str)
 </body>
 </html>"#,
         title = escape(title),
+        css = asset("/public/app.css"),
         head_extra = head_extra,
         body_class = body_class,
         nav = nav(),
@@ -77,7 +98,10 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
         return layout_with_head(
             "Screwball",
             &signed_out_panel(),
-            r#"<script type="module" src="/public/auth.js" defer></script>"#,
+            &format!(
+                r#"<script type="module" src="{}" defer></script>"#,
+                asset("/public/auth.js")
+            ),
             "",
         );
     };
@@ -241,7 +265,11 @@ pub fn game_page(
     // so embedded JSON can't break out of the surrounding <script> element.
     let initial_json = initial_json.replace("</", "<\\/");
     let initial_json = initial_json.as_str();
-    let head = r#"<script type="module" src="/public/game.js" defer></script>"#;
+    let head = format!(
+        r#"<script type="module" src="{}" defer></script>"#,
+        asset("/public/game.js")
+    );
+    let head = head.as_str();
     let sign_in = if logged_in {
         String::new()
     } else {

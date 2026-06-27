@@ -3,7 +3,10 @@ use std::{env, net::SocketAddr, sync::Arc};
 use anyhow::{Context, Result};
 use axum::{
     Router,
-    extract::FromRef,
+    extract::{FromRef, Request},
+    http::{HeaderValue, header::CACHE_CONTROL},
+    middleware::{Next, from_fn},
+    response::Response,
     routing::{get, post},
 };
 use axum_extra::extract::cookie::Key;
@@ -49,14 +52,35 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}/move", post(routes::submit_move))
         .route("/games/{id}/hint", post(routes::hint))
         .nest_service("/public", ServeDir::new("public"))
+        .layer(from_fn(cache_control))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// Cache policy: versioned `/public` asset URLs (`?v=hash`) are content-addressed
+/// so cache them immutably; everything else (HTML pages, JSON) is no-cache so a
+/// deploy's new asset links are always picked up — fixes iOS PWA serving stale
+/// CSS/JS.
+async fn cache_control(request: Request, next: Next) -> Response {
+    let is_asset = request.uri().path().starts_with("/public/");
+    let mut response = next.run(request).await;
+    let value = if is_asset {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static(value));
+    response
 }
 
 pub async fn run() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+
+    crate::render::set_asset_version(asset_version());
 
     let dict = Arc::new(Dictionary::load()?);
     tracing::info!("loaded dictionary with {} words", dict.word_count());
@@ -104,6 +128,19 @@ pub fn build_webauthn() -> Result<Webauthn> {
         .rp_name("Screwball")
         .build()
         .context("failed to build WebAuthn relying party")
+}
+
+/// A short hash of the static assets, used to cache-bust their URLs. Stable for
+/// identical content across restarts; changes when any asset changes.
+fn asset_version() -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for file in ["public/app.css", "public/game.js", "public/auth.js"] {
+        if let Ok(bytes) = std::fs::read(file) {
+            bytes.hash(&mut hasher);
+        }
+    }
+    format!("{:x}", hasher.finish())
 }
 
 /// Read a boolean env flag (`1`/`true`, case-insensitive); absent or anything

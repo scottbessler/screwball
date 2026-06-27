@@ -197,11 +197,11 @@ Impossible - top (current hard)
 * [x] Find and fix an obvious UI bug — new-game form checkbox labels rendered with checkbox centered above text
 * [x] Find and fix an obvious UI bug — undefined `--border` CSS var (missing mobile sidebar separator)
 * [x] Find and fix an obvious UI bug — SSR/demo board center square showed "DW" instead of ★
-* [ ] formatting still broken when using the PWA
+* [x] formatting still broken when using the PWA — root cause was stale cached CSS; fixed via versioned asset URLs + no-cache HTML (see PWA caching task)
 * [ ] i should be able to drag letters back and forth on mobile while my finger is below the actual rack. the letter being dragged properly shows up above my finger but the drop targets need to extend lower.
-* [ ] while dragging on mobile, we should be previewing the result better
-* [ ] while dragging on mobile, the changes to the preview should be more smoothly animated
-* [ ] while dragging on mobile, there should not be flickering of the preview
+* [ ] while dragging letters on the rack, we should be previewing the result better
+* [ ] while dragging letters on the rack, the changes to the preview should be more smoothly animated
+* [ ] while dragging letters on the rack, there should not be flickering of the preview
 * [ ] should be able to drag a placed letter from 1 spot on board to another
 * [x] Find and fix an obvious UI bug — buttons outside `.form` (sign-out, join, Play word) had default UA borders; reset moved to base `.button`
 * [x] Find and fix an obvious UI bug — scoreboard showed unfilled open seat as "human" instead of "open"
@@ -209,7 +209,7 @@ Impossible - top (current hard)
 * [ ] add and apply strict rust linting / compiling
 * [ ] add and apply strict js linting
 * [ ] add precommit hooks that enforce/fix formatting/linting
-* [ ] formatting of game options is poorly aligned and ugly
-
+* [x] formatting of game options is poorly aligned and ugly — checkbox labels now left-aligned rows; hint on its own indented line
+* [x] pwa on ios seems to cache css/js very aggressively — asset URLs now carry a content-hash `?v=`; `/public` is cached immutable, HTML/JSON are no-cache so new asset links are always picked up
 
 ```
