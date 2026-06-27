@@ -5,6 +5,7 @@
   --muted: #6b7280;
   --accent: #b4451f;
   --line: #d8d2c4;
+  --border: #d8d2c4;
   --board-bg: #e9e3d4;
   --dl: #bcd9e6;
   --tl: #5fa8c4;
@@ -795,16 +796,32 @@ section.card + section.card {
 /* Form options */
 .form-options {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  align-items: center;
-  margin-top: 0.25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
 }
 
-.form-options label { display: flex; align-items: center; gap: 0.4rem; }
+/* Checkbox + label on one row, left-aligned; the hint drops to its own line
+   indented under the label text. (.form label forces column direction, which
+   otherwise stacks the checkbox above a centered label.) */
+.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .form-options select { width: auto; }
-.checkbox-label { cursor: pointer; }
-.option-hint { color: var(--muted); font-size: 0.85rem; }
+.option-hint {
+  flex-basis: 100%;
+  margin-left: 1.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
 
 /* Last-played tile highlight */
 .cell .tile-face.last-play {

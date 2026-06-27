@@ -194,16 +194,16 @@ Impossible - top (current hard)
 * [x] Touch drag+drop drop locations are not forgiving enough (i.e. go a little to far to the left/right/up/down 
 * [x] Touch drag+drop should animate letter-movement more smoothly 
 * [x] Touching on letters to play them in typing mode should not move the other letters so you can type faster
-* [ ] Find and fix an obvious UI bug
-* [ ] Find and fix an obvious UI bug 
-* [ ] Find and fix an obvious UI bug
+* [x] Find and fix an obvious UI bug — new-game form checkbox labels rendered with checkbox centered above text
+* [x] Find and fix an obvious UI bug — undefined `--border` CSS var (missing mobile sidebar separator)
+* [x] Find and fix an obvious UI bug — SSR/demo board center square showed "DW" instead of ★
 * [ ] Find and fix an obvious UI bug
 * [ ] Find and fix an obvious UI bug
 * [ ] Find and fix an obvious UI bug
 * [ ] add and apply strict rust linting / compiling
 * [ ] add and apply strict js linting
 * [ ] add precommit hooks that enforce/fix formatting/linting
-
+* [ ] formatting of game options is poorly aligned and ugly
 
 
 ```

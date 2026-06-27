@@ -439,9 +439,14 @@ fn render_board_squares(squares: &[SquareView]) -> String {
             }
             None => {
                 let class = format!("premium-{}", square.premium);
+                let center = row == BOARD_SIZE / 2 && col == BOARD_SIZE / 2;
+                let label = if center {
+                    "★"
+                } else {
+                    premium_label(square.premium)
+                };
                 cells.push_str(&format!(
                     r#"<div class="cell {class}" data-row="{row}" data-col="{col}"><span class="premium-label">{label}</span></div>"#,
-                    label = premium_label(square.premium),
                 ));
             }
         }
