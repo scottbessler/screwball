@@ -206,10 +206,11 @@ Impossible - top (current hard)
 * [x] Find and fix an obvious UI bug — buttons outside `.form` (sign-out, join, Play word) had default UA borders; reset moved to base `.button`
 * [x] Find and fix an obvious UI bug — scoreboard showed unfilled open seat as "human" instead of "open"
 * [x] Find and fix an obvious UI bug — SSR scoreboard showed a bot as "bot" while hydrated client showed "Easy bot"
-* [ ] add and apply strict rust linting / compiling
-* [ ] add and apply strict js linting
-* [ ] add precommit hooks that enforce/fix formatting/linting
+* [x] add and apply strict rust linting / compiling — Cargo.toml denies warnings + clippy::all; `mise run lint:rust` runs fmt + clippy; tree is clean
+* [x] add and apply strict js linting — oxlint (`.oxlintrc.json`, vendor ignored) via `bun run lint --deny-warnings`; `mise run lint:js`
+* [x] add precommit hooks that enforce/fix formatting/linting — `.githooks/pre-commit` runs fmt+clippy+oxlint; enable with `mise run setup`
 * [x] formatting of game options is poorly aligned and ugly — checkbox labels now left-aligned rows; hint on its own indented line
 * [x] pwa on ios seems to cache css/js very aggressively — asset URLs now carry a content-hash `?v=`; `/public` is cached immutable, HTML/JSON are no-cache so new asset links are always picked up
+* [ ] show how many remaining hints each player has in the score summary if hints are enabled
 
 ```

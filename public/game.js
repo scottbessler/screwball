@@ -496,7 +496,7 @@ function MoveLog({ game }) {
   if (!game.moves.length) {
     return html`<p class="muted">No moves yet.</p>`;
   }
-  const recent = game.moves.slice(-10).reverse();
+  const recent = game.moves.slice(-10).toReversed();
   return html`<ul class="move-log">
     ${recent.map((mv, n) => {
       const name = game.seats[mv.seat] ? game.seats[mv.seat].name : "?";
@@ -519,10 +519,7 @@ function MoveLog({ game }) {
 }
 
 function Results({ game }) {
-  const ranked = game.seats
-    .map((seat) => seat)
-    .slice()
-    .sort((a, b) => b.score - a.score);
+  const ranked = game.seats.toSorted((a, b) => b.score - a.score);
   const winners = new Set(game.winners);
   return html`<div class="results card">
     <h2>Game over</h2>
@@ -617,7 +614,7 @@ function OtherGames({ gameId }) {
           prevTurnIds.current = nowTurn;
           setGames(data);
         }
-      } catch (_) {
+      } catch {
         /* transient network error; keep the last list */
       }
     }
@@ -663,11 +660,11 @@ function notifyTurn(body, url) {
     icon: "/public/apple-touch-icon.png",
     tag: url || "screwball-turn",
   });
-  n.onclick = () => {
+  n.addEventListener("click", () => {
     if (url) window.location.href = url;
     window.focus();
     n.close();
-  };
+  });
 }
 
 const BASE_FAVICON = "/public/favicon.svg";
@@ -780,7 +777,7 @@ function App({ gameId, initial }) {
           );
         }
         setGame(next);
-      } catch (_) {
+      } catch {
         /* transient network error; keep polling */
       }
     }, 2500);
@@ -1076,7 +1073,7 @@ function App({ gameId, initial }) {
       } else {
         setHintResult(data.message || "No plays available.");
       }
-    } catch (_) {
+    } catch {
       setError("Network error — try again.");
     } finally {
       setHintBusy(false);
@@ -1096,7 +1093,7 @@ function App({ gameId, initial }) {
       let data = null;
       try {
         data = await res.json();
-      } catch (_) {
+      } catch {
         data = null;
       }
       if (!res.ok) {
@@ -1116,7 +1113,7 @@ function App({ gameId, initial }) {
       }
       setGame(data);
       reset();
-    } catch (_) {
+    } catch {
       setError("Network error — try again.");
     } finally {
       setBusy(false);
