@@ -397,6 +397,15 @@ section.card + section.card {
   border-color: var(--accent);
 }
 
+/* Empty slot left by a tile placed on the board this turn. */
+.rack-tile.rack-slot {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border);
+  cursor: default;
+  box-shadow: none;
+}
+
 .rack-tile.tile-blank { color: var(--accent); }
 
 .controls {
@@ -629,8 +638,20 @@ section.card + section.card {
   border-radius: 6px;
   font-weight: 700;
   font-size: 1.05rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  transform: translate(-50%, -50%);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  /* Lifted well above the fingertip so the tile stays visible while dragging. */
+  transform: translate(-50%, -150%) scale(1.1);
+  animation: ghost-pickup 0.12s ease-out;
+}
+
+@keyframes ghost-pickup {
+  from { transform: translate(-50%, -50%) scale(0.9); }
+  to   { transform: translate(-50%, -150%) scale(1.1); }
+}
+
+/* Pending tiles pop in smoothly when placed on the board. */
+.cell .tile-face.pending {
+  animation: tile-pop 0.15s ease;
 }
 
 /* Game-page mobile: full-bleed, no-scroll, optimized for iPhone 15 Pro */

@@ -292,6 +292,30 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
   >${cells}</div>`;
 }
 
+// Find an empty board cell at/near a screen point. Probes a small radius so a
+// touch that lands slightly off a square still resolves to it (forgiving drop).
+function cellAtPoint(x, y) {
+  const TOL = 22;
+  const offsets = [
+    [0, 0],
+    [0, -TOL], [0, TOL], [-TOL, 0], [TOL, 0],
+    [-TOL, -TOL], [TOL, -TOL], [-TOL, TOL], [TOL, TOL],
+  ];
+  for (const [ox, oy] of offsets) {
+    const el = document.elementFromPoint(x + ox, y + oy);
+    const cell = el && el.closest(".cell");
+    if (
+      cell &&
+      cell.dataset.row != null &&
+      cell.dataset.col != null &&
+      !cell.classList.contains("tile")
+    ) {
+      return cell;
+    }
+  }
+  return null;
+}
+
 function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard, onHover }) {
   const dragId = useRef(null);
   const touchState = useRef(null);
@@ -351,12 +375,12 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
             btn.classList.add("reorder-pop");
           }
         }
-        // Highlight board cell
-        const cell = el.closest(".cell");
-        if (cell && cell.dataset.row != null && !cell.classList.contains("tile")) {
-          cell.classList.add("drag-over");
-          touchState.current.highlightedCell = cell;
-        }
+      }
+      // Highlight the nearest board cell (forgiving of a slightly-off touch).
+      const cell = cellAtPoint(touch.clientX, touch.clientY);
+      if (cell) {
+        cell.classList.add("drag-over");
+        touchState.current.highlightedCell = cell;
       }
     }
   }
@@ -373,18 +397,15 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         touchState.current.highlightedCell.classList.remove("drag-over");
       }
       if (touchState.current.dragging) {
-        // Check if dropped on a board cell
+        // Drop onto the nearest board cell (forgiving of a slightly-off touch).
         const lastTouch = e.changedTouches[0];
-        const el = document.elementFromPoint(lastTouch.clientX, lastTouch.clientY);
-        if (el) {
-          const cell = el.closest(".cell");
-          if (cell && cell.dataset.row != null && cell.dataset.col != null) {
-            const row = Number(cell.dataset.row);
-            const col = Number(cell.dataset.col);
-            const tile = tiles.find((t) => t.id === touchState.current.originalId);
-            if (tile && onPlaceOnBoard) {
-              onPlaceOnBoard(tile, row, col);
-            }
+        const cell = cellAtPoint(lastTouch.clientX, lastTouch.clientY);
+        if (cell) {
+          const row = Number(cell.dataset.row);
+          const col = Number(cell.dataset.col);
+          const tile = tiles.find((t) => t.id === touchState.current.originalId);
+          if (tile && onPlaceOnBoard) {
+            onPlaceOnBoard(tile, row, col);
           }
         }
       } else {
@@ -401,6 +422,10 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
     onTouchEnd=${handleTouchEnd}
   >
     ${tiles.map((tile) => {
+      // Placed tile: hold its slot with an inert placeholder so nothing reflows.
+      if (tile.used) {
+        return html`<div class="rack-tile rack-slot" key=${tile.id}></div>`;
+      }
       const picked =
         mode === "exchange" ? exchange.has(tile.id) : selected === tile.id;
       const cls = [
@@ -786,13 +811,15 @@ function App({ gameId, initial }) {
     rackOrder.length === rackTiles.length
       ? rackOrder
       : rackTiles.map((_, i) => i);
-  const rack = order
-    .filter((id) => !usedRackIds.has(id))
-    .map((id) => ({
-      id,
-      letter: rackTiles[id].letter,
-      is_blank: rackTiles[id].is_blank,
-    }));
+  // Keep placed tiles in the rack as inert placeholders so the remaining
+  // letters never shift position mid-turn — you can tap-place rapidly without
+  // chasing a moving target.
+  const rack = order.map((id) => ({
+    id,
+    letter: rackTiles[id].letter,
+    is_blank: rackTiles[id].is_blank,
+    used: usedRackIds.has(id),
+  }));
 
   function reset() {
     setPending([]);
@@ -927,8 +954,8 @@ function App({ gameId, initial }) {
       setError("No room to place a tile that way.");
       return;
     }
-    const exact = rack.find((t) => !t.is_blank && t.letter === letter);
-    const blank = rack.find((t) => t.is_blank);
+    const exact = rack.find((t) => !t.used && !t.is_blank && t.letter === letter);
+    const blank = rack.find((t) => !t.used && t.is_blank);
     const chosen = exact || blank;
     if (!chosen) {
       setError(`No "${letter}" tile (or blank) on your rack.`);
