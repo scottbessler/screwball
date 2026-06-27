@@ -74,6 +74,49 @@ fn hard_bot_picks_a_scoring_play() {
 }
 
 #[test]
+fn impossible_bot_picks_the_top_play() {
+    let game = bot_game(&["COATSXY"], Difficulty::Impossible);
+    let best = bot::scored_plays(&game.board, &game.seats[0].rack, &dict(), 2)
+        .into_iter()
+        .map(|(_, s)| s.points)
+        .max()
+        .expect("has plays");
+    // Impossible is deterministic (index 0), so any seed yields the best.
+    for seed in 0..5 {
+        let mut rng = StdRng::seed_from_u64(seed);
+        let kind = bot::choose_move(&game, &dict(), 0, &mut rng);
+        let MoveKind::Play { placements } = kind else {
+            panic!("expected a play");
+        };
+        let scored = validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, 2)
+            .expect("legal");
+        assert_eq!(scored.points, best);
+    }
+}
+
+#[test]
+fn every_difficulty_produces_a_legal_play() {
+    for difficulty in [
+        Difficulty::Easy,
+        Difficulty::Chill,
+        Difficulty::Medium,
+        Difficulty::Hard,
+        Difficulty::Impossible,
+    ] {
+        let game = bot_game(&["COATSXY"], difficulty);
+        for seed in 0..8 {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let kind = bot::choose_move(&game, &dict(), 0, &mut rng);
+            let MoveKind::Play { placements } = kind else {
+                panic!("expected a play for {difficulty:?}");
+            };
+            validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, 2)
+                .unwrap_or_else(|_| panic!("legal play for {difficulty:?}"));
+        }
+    }
+}
+
+#[test]
 fn take_turn_applies_a_bot_move() {
     let mut game = bot_game(&["COATSXY", "ATOESCR"], Difficulty::Hard);
     let mut rng = StdRng::seed_from_u64(5);

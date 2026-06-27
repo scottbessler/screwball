@@ -305,16 +305,22 @@ pub fn choose_move(
         SeatKind::Human { .. } => Difficulty::Medium,
     };
 
+    // plays sorted highest-score-first (index 0 = best).
+    let n = plays.len();
     let index = match difficulty {
-        Difficulty::Hard => 0,
-        Difficulty::Medium => {
-            let top = (plays.len() / 4).max(1);
-            rng.gen_range(0..top)
+        Difficulty::Impossible => 0,
+        Difficulty::Hard => rng.gen_range(0..(n / 10).max(1)),
+        Difficulty::Medium => rng.gen_range(0..(n / 4).max(1)),
+        Difficulty::Chill => {
+            // Middle 50%: 25th–75th percentile.
+            let lo = n / 4;
+            let hi = (3 * n / 4).max(lo + 1).min(n);
+            rng.gen_range(lo..hi)
         }
         Difficulty::Easy => {
-            // Prefer modest plays: pick from the lower-scoring half.
-            let bottom_start = plays.len() / 2;
-            rng.gen_range(bottom_start..plays.len())
+            // Bottom 50%.
+            let lo = n / 2;
+            rng.gen_range(lo..n)
         }
     };
 

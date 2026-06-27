@@ -150,8 +150,10 @@ fn new_game_form() -> String {
             r#"<option value="off"{off}>— none —</option>
 <option value="open">Open seat (human)</option>
 <option value="easy">Easy bot</option>
+<option value="chill">Chill bot</option>
 <option value="medium">Medium bot</option>
-<option value="hard">Hard bot</option>"#
+<option value="hard">Hard bot</option>
+<option value="impossible">Impossible bot</option>"#
         )
     };
     format!(

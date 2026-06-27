@@ -116,8 +116,10 @@ fn seat_spec(raw: &str) -> Option<SeatSpec> {
             name: "Open seat".to_string(),
         }),
         "easy" => Some(bot_spec(Difficulty::Easy, "Easy bot")),
+        "chill" => Some(bot_spec(Difficulty::Chill, "Chill bot")),
         "medium" => Some(bot_spec(Difficulty::Medium, "Medium bot")),
         "hard" => Some(bot_spec(Difficulty::Hard, "Hard bot")),
+        "impossible" => Some(bot_spec(Difficulty::Impossible, "Impossible bot")),
         _ => None,
     }
 }

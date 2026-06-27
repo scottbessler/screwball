@@ -105,8 +105,10 @@ pub struct Board {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Difficulty {
     Easy,
+    Chill,
     Medium,
     Hard,
+    Impossible,
 }
 
 /// Who occupies a seat at the table.

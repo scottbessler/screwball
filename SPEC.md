@@ -178,9 +178,31 @@ tests/  engine unit tests (scoring, validation, move gen) + route integration te
 8. Polish: game setup UI (player count + bots), end-game screen, exchange/pass
    UI, mobile layout, blank-tile picker.
 
-## 13. Remaining decisions
+## 13. Tasks
 
-1. Spec format — readable markdown (this), or lisports' compressed `§` shape?
-2. Bot difficulty levels — Easy/Medium/Hard as above good enough for v1?
-3. Display-name uniqueness — required, or allow duplicates (id is the key)?
+
+* [x] Tweak the difficulties a bit:
+Easy - bottom 50% still
+Chill - middle 50%
+Medium - top 25% 
+Hard - top 10%
+Impossible - top (current hard)
+* [ ] Change "John Mode" to actually show the valid 2-letter words that include the selected/hovered-over letter (but not disallow them)
+* [ ] Add "Grandpa Mode" to disallow almost all 2-letter words (allow the super common ones like am, an, me, hi)
+* [ ] Game start screen doesnt work on mobile (buttons/controls are lost to overflow)
+* [ ] Touch drag+drop on mobile should have the dragged item be above where the touch is so it isnt hidden under your finger
+* [ ] Touch drag+drop drop locations are not forgiving enough (i.e. go a little to far to the left/right/up/down 
+* [ ] Touch drag+drop should animate letter-movement more smoothly 
+* [ ] Touching on letters to play them in typing mode should not move the other letters so you can type faster
+* [ ] Find and fix an obvious UI bug
+* [ ] Find and fix an obvious UI bug 
+* [ ] Find and fix an obvious UI bug
+* [ ] Find and fix an obvious UI bug
+* [ ] Find and fix an obvious UI bug
+* [ ] Find and fix an obvious UI bug
+
+
+
+
+
 ```
