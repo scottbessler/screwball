@@ -200,7 +200,8 @@ Impossible - top (current hard)
 * [ ] Find and fix an obvious UI bug
 * [ ] Find and fix an obvious UI bug
 * [ ] Find and fix an obvious UI bug
-
+* [ ] add and apply strict rust linting / compiling
+* [ ] add and apply strict js linting
 
 
 

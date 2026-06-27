@@ -6,7 +6,9 @@ use uuid::Uuid;
 use screwball::bot;
 use screwball::dict::Dictionary;
 use screwball::game::validate_play;
-use screwball::models::{Board, Difficulty, Game, GameStatus, MoveKind, Seat, SeatKind, Tile, WordRule};
+use screwball::models::{
+    Board, Difficulty, Game, GameStatus, MoveKind, Seat, SeatKind, Tile, WordRule,
+};
 
 fn dict() -> Dictionary {
     Dictionary::from_words(
@@ -55,7 +57,16 @@ fn generates_first_move_through_center() {
     assert!(!plays.is_empty());
     // Every first-move play must cover the center and re-validate cleanly.
     for (placements, _) in &plays {
-        assert!(validate_play(&board, &rack("COATSXY"), &dict(), placements, WordRule::Standard).is_ok());
+        assert!(
+            validate_play(
+                &board,
+                &rack("COATSXY"),
+                &dict(),
+                placements,
+                WordRule::Standard
+            )
+            .is_ok()
+        );
     }
 }
 
@@ -66,8 +77,14 @@ fn hard_bot_picks_a_scoring_play() {
     let kind = bot::choose_move(&game, &dict(), 0, &mut rng);
     match kind {
         MoveKind::Play { placements } => {
-            let scored = validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, WordRule::Standard)
-                .expect("bot play is legal");
+            let scored = validate_play(
+                &game.board,
+                &game.seats[0].rack,
+                &dict(),
+                &placements,
+                WordRule::Standard,
+            )
+            .expect("bot play is legal");
             assert!(scored.points > 0);
         }
         other => panic!("expected a play, got {other:?}"),
@@ -77,11 +94,16 @@ fn hard_bot_picks_a_scoring_play() {
 #[test]
 fn impossible_bot_picks_the_top_play() {
     let game = bot_game(&["COATSXY"], Difficulty::Impossible);
-    let best = bot::scored_plays(&game.board, &game.seats[0].rack, &dict(), WordRule::Standard)
-        .into_iter()
-        .map(|(_, s)| s.points)
-        .max()
-        .expect("has plays");
+    let best = bot::scored_plays(
+        &game.board,
+        &game.seats[0].rack,
+        &dict(),
+        WordRule::Standard,
+    )
+    .into_iter()
+    .map(|(_, s)| s.points)
+    .max()
+    .expect("has plays");
     // Impossible is deterministic (index 0), so any seed yields the best.
     for seed in 0..5 {
         let mut rng = StdRng::seed_from_u64(seed);
@@ -89,8 +111,14 @@ fn impossible_bot_picks_the_top_play() {
         let MoveKind::Play { placements } = kind else {
             panic!("expected a play");
         };
-        let scored = validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, WordRule::Standard)
-            .expect("legal");
+        let scored = validate_play(
+            &game.board,
+            &game.seats[0].rack,
+            &dict(),
+            &placements,
+            WordRule::Standard,
+        )
+        .expect("legal");
         assert_eq!(scored.points, best);
     }
 }
@@ -111,8 +139,14 @@ fn every_difficulty_produces_a_legal_play() {
             let MoveKind::Play { placements } = kind else {
                 panic!("expected a play for {difficulty:?}");
             };
-            validate_play(&game.board, &game.seats[0].rack, &dict(), &placements, WordRule::Standard)
-                .unwrap_or_else(|_| panic!("legal play for {difficulty:?}"));
+            validate_play(
+                &game.board,
+                &game.seats[0].rack,
+                &dict(),
+                &placements,
+                WordRule::Standard,
+            )
+            .unwrap_or_else(|_| panic!("legal play for {difficulty:?}"));
         }
     }
 }

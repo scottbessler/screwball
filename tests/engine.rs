@@ -5,7 +5,9 @@ use uuid::Uuid;
 
 use screwball::dict::Dictionary;
 use screwball::game::{MoveError, SeatSpec, apply_move, new_game, validate_play};
-use screwball::models::{Board, Game, WordRule, GameStatus, MoveKind, Placement, Position, SeatKind, Tile};
+use screwball::models::{
+    Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule,
+};
 
 fn dict() -> Dictionary {
     Dictionary::from_words("AT\nAS\nTA\nTO\nOAT\nOATS\nCAT\nCATS\nHAT\nHATS\nHA\nAH\nAAAAAAA\n")
@@ -28,7 +30,8 @@ fn first_move_scores_center_double_word() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A'), letter('T'), letter('X')];
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
-    let scored = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).expect("valid play");
+    let scored =
+        validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).expect("valid play");
     assert_eq!(scored.words.len(), 1);
     assert_eq!(scored.words[0].word, "CAT");
     // C(3)+A(1)+T(1) = 5, doubled by the center star = 10.
@@ -59,7 +62,8 @@ fn grandpa_mode_rejects_uncommon_two_letter_words() {
     let rack = vec![letter('H'), letter('A')];
     let placements = vec![place(7, 7, 'H'), place(7, 8, 'A')];
     // "HA" is a valid dictionary word but not on Grandpa's allowlist.
-    validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).expect("standard allows HA");
+    validate_play(&board, &rack, &dict(), &placements, WordRule::Standard)
+        .expect("standard allows HA");
     let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Grandpa).unwrap_err();
     assert_eq!(err, MoveError::DisallowedWords(vec!["HA".to_string()]));
 }
@@ -95,7 +99,8 @@ fn second_move_must_connect() {
     // A HAT placed far away, touching nothing, must be rejected.
     let rack = vec![letter('H'), letter('A'), letter('T')];
     let placements = vec![place(0, 0, 'H'), place(0, 1, 'A'), place(0, 2, 'T')];
-    let err = validate_play(&game.board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err =
+        validate_play(&game.board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
     assert_eq!(err, MoveError::NotConnected);
 }
 
@@ -109,8 +114,14 @@ fn cross_word_play_scores_both_words() {
     play_first_cat(&mut game);
     // Seat 1 hangs an S under the center A to form "AS" vertically.
     let placements = vec![place(8, 7, 'S')];
-    let scored = validate_play(&game.board, &game.seats[1].rack, &dict(), &placements, WordRule::Standard)
-        .expect("connecting play");
+    let scored = validate_play(
+        &game.board,
+        &game.seats[1].rack,
+        &dict(),
+        &placements,
+        WordRule::Standard,
+    )
+    .expect("connecting play");
     assert!(scored.words.iter().any(|w| w.word == "AS"));
 }
 
@@ -127,7 +138,8 @@ fn bingo_awards_fifty_point_bonus() {
         letter('A'),
     ];
     let placements: Vec<Placement> = (4..=10).map(|col| place(7, col, 'A')).collect();
-    let scored = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).expect("seven-tile play");
+    let scored = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard)
+        .expect("seven-tile play");
     // 7 x A(1) = 7, doubled by center = 14, plus 50 bingo bonus = 64.
     assert_eq!(scored.points, 64);
 }
