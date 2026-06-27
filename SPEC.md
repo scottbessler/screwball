@@ -212,5 +212,7 @@ Impossible - top (current hard)
 * [x] formatting of game options is poorly aligned and ugly — checkbox labels now left-aligned rows; hint on its own indented line
 * [x] pwa on ios seems to cache css/js very aggressively — asset URLs now carry a content-hash `?v=`; `/public` is cached immutable, HTML/JSON are no-cache so new asset links are always picked up
 * [ ] show how many remaining hints each player has in the score summary if hints are enabled
-
+* [ ] consider using https://shopify.github.io/draggable or a similar library to ensure our drag+drop is robust
+* [ ] the grandpa list should include other very common 2 letter words as well
+* [ ] in game log, show word definitions (there has to be some free api somewhere maybe https://dictionaryapi.dev)
 ```

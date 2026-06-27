@@ -15,6 +15,9 @@ use webauthn_rs::prelude::{Url, Webauthn, WebauthnBuilder};
 
 use crate::{auth, dict::Dictionary, routes, store::GameStore, users::UserStore};
 
+const LOCAL_DEV_SESSION_SECRET: &str =
+    "screwball-local-development-session-secret-v1-keep-browser-sessions-across-restarts";
+
 #[derive(Clone)]
 pub struct AppState {
     pub dict: Arc<Dictionary>,
@@ -152,8 +155,9 @@ fn env_flag(name: &str) -> bool {
     )
 }
 
-/// Derive the cookie-signing key from `SESSION_SECRET`. Falls back to an
-/// ephemeral key (with a warning) so local runs work out of the box.
+/// Derive the cookie-signing key from `SESSION_SECRET`. Debug builds use a
+/// stable local-dev fallback so `cargo run` restarts keep browser sessions;
+/// release builds keep the safer ephemeral fallback when the secret is unset.
 fn load_key() -> Key {
     match env::var("SESSION_SECRET") {
         Ok(secret) if secret.len() >= 64 => Key::from(secret.as_bytes()),
@@ -164,10 +168,42 @@ fn load_key() -> Key {
             Key::generate()
         }
         Err(_) => {
-            tracing::warn!(
-                "SESSION_SECRET is not set; using an ephemeral key (sessions reset on restart)"
-            );
-            Key::generate()
+            if cfg!(debug_assertions) {
+                tracing::info!("SESSION_SECRET is not set; using stable local-dev session key");
+                Key::from(LOCAL_DEV_SESSION_SECRET.as_bytes())
+            } else {
+                tracing::warn!(
+                    "SESSION_SECRET is not set; using an ephemeral key (sessions reset on restart)"
+                );
+                Key::generate()
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cookie::{Cookie as RawCookie, CookieJar};
+
+    use super::*;
+
+    fn signed_sid_value(key: &Key) -> String {
+        let mut jar = CookieJar::new();
+        jar.signed_mut(key)
+            .add(RawCookie::new("sid", "local-dev-user"));
+        jar.get("sid").unwrap().value().to_string()
+    }
+
+    #[test]
+    fn local_dev_session_secret_is_stable() {
+        let first = Key::from(LOCAL_DEV_SESSION_SECRET.as_bytes());
+        let second = Key::from(LOCAL_DEV_SESSION_SECRET.as_bytes());
+
+        assert_eq!(signed_sid_value(&first), signed_sid_value(&second));
+    }
+
+    #[test]
+    fn local_dev_session_secret_is_long_enough_for_cookie_key() {
+        assert!(LOCAL_DEV_SESSION_SECRET.len() >= 64);
     }
 }

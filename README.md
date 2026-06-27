@@ -51,7 +51,7 @@ party and session signing via environment variables:
 | ---------------- | ------------------------- | ------------------------------------------------------------------ |
 | `RP_ID`          | `localhost`               | WebAuthn relying-party id (the registrable domain).                |
 | `RP_ORIGIN`      | `http://localhost:8080`   | Full origin browsers connect from; must match `RP_ID`.             |
-| `SESSION_SECRET` | _(ephemeral)_             | ≥64-byte secret signing the session cookie. Unset ⇒ a random key is used and sessions reset on restart. |
+| `SESSION_SECRET` | stable in debug builds, ephemeral in release builds | ≥64-byte secret signing the session cookie. Unset in local `cargo run` uses a stable dev key; unset in release uses a random key and sessions reset on restart. |
 
 In production set `RP_ID`/`RP_ORIGIN` to your real domain (e.g. `RP_ID=play.example.com`,
 `RP_ORIGIN=https://play.example.com`) and a stable `SESSION_SECRET`.

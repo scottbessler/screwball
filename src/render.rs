@@ -183,7 +183,7 @@ fn new_game_form() -> String {
         )
     };
     format!(
-        r#"<form method="post" action="/games" class="form">
+        r#"<form method="post" action="/games" class="form new-game-form">
   <label>Seat 2
     <select name="seat2">{seat2}</select>
   </label>
@@ -194,15 +194,25 @@ fn new_game_form() -> String {
     <select name="seat4">{seat4}</select>
   </label>
   <div class="form-options">
-    <label class="checkbox-label">
-      <input type="checkbox" name="john_mode" value="on" />
-      John Mode <span class="option-hint">(show valid 2-letter words)</span>
-    </label>
-    <label class="checkbox-label">
-      <input type="checkbox" name="grandpa_mode" value="on" />
-      Grandpa Mode <span class="option-hint">(no 2-letter words except am, an, me, hi)</span>
-    </label>
-    <label>Hints per player
+    <div class="form-option-row">
+      <label class="checkbox-label" for="john-mode">
+        <input id="john-mode" type="checkbox" name="john_mode" value="on" />
+        <span>John Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="john-mode-help">i
+        <span id="john-mode-help" class="tooltip-content" role="tooltip">Show valid 2-letter words.</span>
+      </span>
+    </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="grandpa-mode">
+        <input id="grandpa-mode" type="checkbox" name="grandpa_mode" value="on" />
+        <span>Grandpa Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="grandpa-mode-help">i
+        <span id="grandpa-mode-help" class="tooltip-content" role="tooltip">Disallow 2-letter words except am, an, me, and hi.</span>
+      </span>
+    </div>
+    <label class="hints-label">Hints per player
       <select name="hints">
         <option value="0" selected>None</option>
         <option value="1">1</option>

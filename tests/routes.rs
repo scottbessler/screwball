@@ -168,6 +168,9 @@ async fn home_page_logged_in_shows_new_game() {
     let html = body_string(response).await;
     assert!(html.contains("New game"));
     assert!(html.contains("Sign out"));
+    assert!(html.contains("class=\"form new-game-form\""));
+    assert!(html.contains("class=\"form-option-row\""));
+    assert!(html.contains("role=\"tooltip\""));
 }
 
 #[tokio::test]
