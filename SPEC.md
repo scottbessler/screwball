@@ -202,7 +202,7 @@ Impossible - top (current hard)
 * [x] while dragging letters on the rack, we should be previewing the result better — tiles reorder live toward the nearest tile centre, showing where the dragged tile lands
 * [x] while dragging letters on the rack, the changes to the preview should be more smoothly animated — FLIP animation slides tiles to new positions
 * [x] while dragging letters on the rack, there should not be flickering of the preview — nearest-centre targeting only changes at midpoints (no edge flip-flop); manual reorder-pop removed
-* [ ] should be able to drag a placed letter from 1 spot on board to another
+* [x] should be able to drag a placed letter from 1 spot on board to another — pending board tiles are draggable (mouse + touch) to any empty square via movePending
 * [x] Find and fix an obvious UI bug — buttons outside `.form` (sign-out, join, Play word) had default UA borders; reset moved to base `.button`
 * [x] Find and fix an obvious UI bug — scoreboard showed unfilled open seat as "human" instead of "open"
 * [x] Find and fix an obvious UI bug — SSR scoreboard showed a bot as "bot" while hydrated client showed "Easy bot"

@@ -134,7 +134,18 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
     </div>`;
   }
   if (pending) {
-    return html`<div class="cell tile" data-row=${row} data-col=${col} onClick=${onClick}>
+    return html`<div
+      class="cell tile pending-cell"
+      data-row=${row}
+      data-col=${col}
+      data-rackid=${pending.rackId}
+      draggable=${true}
+      onDragStart=${(e) => {
+        e.dataTransfer.setData("text/plain", "pending:" + pending.rackId);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onClick=${onClick}
+    >
       <${Tile}
         letter=${pending.letter}
         isBlank=${pending.isBlank}
@@ -161,13 +172,14 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
   </div>`;
 }
 
-function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick, onDropTile }) {
+function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick, onDropTile, onMovePending }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const boardRef = useRef(null);
   const pinchState = useRef(null);
   const scaleRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef(null);
+  const pendingDrag = useRef(null);
 
   function applyTransform() {
     if (!boardRef.current) return;
@@ -178,6 +190,23 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
   }
 
   function handleBoardTouchStart(e) {
+    // Start dragging an already-placed (pending) tile to another square (205).
+    if (e.touches.length === 1) {
+      const tileEl = e.target.closest(".pending-cell[data-rackid]");
+      if (tileEl) {
+        const letterEl = tileEl.querySelector(".tile-letter");
+        pendingDrag.current = {
+          rackId: Number(tileEl.dataset.rackid),
+          startX: e.touches[0].clientX,
+          startY: e.touches[0].clientY,
+          dragging: false,
+          ghost: null,
+          letter: letterEl ? letterEl.textContent : "",
+          highlightedCell: null,
+        };
+        return;
+      }
+    }
     if (e.touches.length === 2) {
       e.preventDefault();
       const dx = e.touches[1].clientX - e.touches[0].clientX;
@@ -204,6 +233,38 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
   }
 
   function handleBoardTouchMove(e) {
+    if (pendingDrag.current && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const pd = pendingDrag.current;
+      if (
+        !pd.dragging &&
+        Math.abs(touch.clientX - pd.startX) + Math.abs(touch.clientY - pd.startY) > 8
+      ) {
+        pd.dragging = true;
+        const ghost = document.createElement("div");
+        ghost.className = "rack-tile-ghost";
+        ghost.textContent = pd.letter;
+        document.body.appendChild(ghost);
+        pd.ghost = ghost;
+      }
+      if (pd.dragging) {
+        e.preventDefault();
+        if (pd.ghost) {
+          pd.ghost.style.left = touch.clientX + "px";
+          pd.ghost.style.top = touch.clientY + "px";
+        }
+        if (pd.highlightedCell) {
+          pd.highlightedCell.classList.remove("drag-over");
+          pd.highlightedCell = null;
+        }
+        const cell = cellAtPoint(touch.clientX, touch.clientY);
+        if (cell) {
+          cell.classList.add("drag-over");
+          pd.highlightedCell = cell;
+        }
+      }
+      return;
+    }
     if (e.touches.length === 2 && pinchState.current) {
       e.preventDefault();
       const dx = e.touches[1].clientX - e.touches[0].clientX;
@@ -228,6 +289,20 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
   }
 
   function handleBoardTouchEnd(e) {
+    if (pendingDrag.current) {
+      const pd = pendingDrag.current;
+      if (pd.ghost) pd.ghost.remove();
+      if (pd.highlightedCell) pd.highlightedCell.classList.remove("drag-over");
+      if (pd.dragging) {
+        const lastTouch = e.changedTouches[0];
+        const cell = cellAtPoint(lastTouch.clientX, lastTouch.clientY);
+        if (cell && onMovePending) {
+          onMovePending(pd.rackId, Number(cell.dataset.row), Number(cell.dataset.col));
+        }
+      }
+      pendingDrag.current = null;
+      return;
+    }
     if (e.touches.length < 2) {
       pinchState.current = null;
       if (scaleRef.current < 1.1) {
@@ -279,8 +354,12 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
           onDragOver=${isEmpty ? (e) => e.preventDefault() : null}
           onDrop=${isEmpty ? (e) => {
             e.preventDefault();
-            const tileId = Number(e.dataTransfer.getData("text/plain"));
-            if (onDropTile) onDropTile(tileId, row, col);
+            const data = e.dataTransfer.getData("text/plain");
+            if (data.startsWith("pending:")) {
+              if (onMovePending) onMovePending(Number(data.slice(8)), row, col);
+            } else if (onDropTile) {
+              onDropTile(Number(data), row, col);
+            }
           } : null}
         />`,
       );
@@ -1112,6 +1191,16 @@ function App({ gameId, initial }) {
     setSelected(null);
   }
 
+  // Relocate an already-placed (pending) tile to another empty square.
+  function movePending(rackId, row, col) {
+    if (!yourTurn || mode !== "place") return;
+    if (game.board[idx(row, col)].letter) return;
+    if (pending.some((p) => p.row === row && p.col === col)) return;
+    setPending(
+      pending.map((p) => (p.rackId === rackId ? { ...p, row, col } : p)),
+    );
+  }
+
   async function requestHint() {
     setHintBusy(true);
     try {
@@ -1218,6 +1307,7 @@ function App({ gameId, initial }) {
           onCellClick=${onCellClick}
           onPendingClick=${recallTile}
           onDropTile=${dropTileOnBoard}
+          onMovePending=${movePending}
         />
         ${!seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null}
       </div>
