@@ -369,6 +369,13 @@ fn render_scoreboard(view: &GameView) -> String {
             } else {
                 ""
             };
+            let kind = if seat.open {
+                "open".to_string()
+            } else if let Some(difficulty) = seat.difficulty {
+                format!("{difficulty:?} bot")
+            } else {
+                "human".to_string()
+            };
             format!(
                 r#"<tr class="seat{turn}">
   <td>{name}{you}</td>
@@ -376,7 +383,6 @@ fn render_scoreboard(view: &GameView) -> String {
   <td class="score">{score}</td>
 </tr>"#,
                 name = escape(&seat.name),
-                kind = seat.kind,
                 score = seat.score,
             )
         })

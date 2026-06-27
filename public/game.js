@@ -479,7 +479,11 @@ function Scoreboard({ game }) {
             ${seat.is_you ? html`<span class="badge">you</span>` : null}
           </td>
           <td class="muted">
-            ${seat.kind === "bot" ? `${seat.difficulty} bot` : "human"}
+            ${seat.open
+              ? "open"
+              : seat.kind === "bot"
+                ? `${seat.difficulty} bot`
+                : "human"}
           </td>
           <td class="score">${seat.score}</td>
         </tr>`,
