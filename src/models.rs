@@ -191,17 +191,47 @@ pub struct Game {
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub updated_at: DateTime<Utc>,
+    /// John Mode: a display helper that surfaces valid 2-letter words; it does
+    /// not restrict play. Kept for backward-compatible game state.
     #[serde(default)]
     pub john_mode: bool,
+    /// Grandpa Mode: disallow 2-letter words except a few common ones.
+    #[serde(default)]
+    pub grandpa_mode: bool,
     #[serde(default)]
     pub hints_allowed: u8,
     #[serde(default)]
     pub hints_used: Vec<u8>,
 }
 
+/// 2-letter words still allowed in Grandpa Mode.
+pub const GRANDPA_TWO_LETTER: &[&str] = &["AM", "AN", "ME", "HI"];
+
+/// Which words a play may form, beyond being in the dictionary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WordRule {
+    /// Any dictionary word (2+ letters).
+    Standard,
+    /// Grandpa Mode: 2-letter words only if in [`GRANDPA_TWO_LETTER`].
+    Grandpa,
+}
+
+impl WordRule {
+    /// Whether `word` (uppercase) is permitted by this rule.
+    pub fn allows(&self, word: &str) -> bool {
+        match self {
+            WordRule::Standard => true,
+            WordRule::Grandpa => word.len() != 2 || GRANDPA_TWO_LETTER.contains(&word),
+        }
+    }
+}
+
 impl Game {
-    /// Minimum word length: 3 in John Mode, 2 normally.
-    pub fn min_word_length(&self) -> usize {
-        if self.john_mode { 3 } else { 2 }
+    pub fn word_rule(&self) -> WordRule {
+        if self.grandpa_mode {
+            WordRule::Grandpa
+        } else {
+            WordRule::Standard
+        }
     }
 }

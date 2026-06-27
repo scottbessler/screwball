@@ -19,6 +19,16 @@ const POINTS = {
 const PREMIUM_LABEL = { dl: "DL", tl: "TL", dw: "DW", tw: "TW", none: "" };
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+// Valid 2-letter words, embedded by the server for John Mode's helper.
+const TWO_LETTER_WORDS = (() => {
+  const el = document.getElementById("two-letter-words");
+  try {
+    return el ? JSON.parse(el.textContent) : [];
+  } catch {
+    return [];
+  }
+})();
+
 function pointsFor(letter, isBlank) {
   return isBlank ? 0 : POINTS[letter] || 0;
 }
@@ -282,7 +292,7 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
   >${cells}</div>`;
 }
 
-function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard }) {
+function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard, onHover }) {
   const dragId = useRef(null);
   const touchState = useRef(null);
   const rackRef = useRef(null);
@@ -421,6 +431,8 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         }}
         onTouchStart=${(e) => handleTouchStart(e, tile)}
         onClick=${() => onSelect(tile)}
+        onMouseEnter=${() => onHover && onHover(tile.is_blank ? null : tile.letter)}
+        onMouseLeave=${() => onHover && onHover(null)}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
         <span class="tile-points">${pointsFor(tile.letter, tile.is_blank)}</span>
@@ -666,10 +678,26 @@ function statusText(game) {
   return seat ? `${seat.name}'s turn` : "In progress";
 }
 
+// John Mode helper: valid 2-letter words containing the active rack letter.
+function JohnHint({ letter }) {
+  if (!letter) {
+    return html`<p class="john-hint muted">Hover or select a rack tile to see its 2-letter words.</p>`;
+  }
+  const up = letter.toUpperCase();
+  const words = TWO_LETTER_WORDS.filter((w) => w.includes(up));
+  return html`<p class="john-hint">
+    <span class="john-hint-label">2-letter words with ${up}:</span>${" "}
+    ${words.length
+      ? words.map((w) => html`<span class="john-word">${w}</span>`)
+      : html`<span class="muted">none</span>`}
+  </p>`;
+}
+
 function App({ gameId, initial }) {
   const [game, setGame] = useState(initial);
   const [pending, setPending] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [hoverLetter, setHoverLetter] = useState(null);
   const [mode, setMode] = useState("place");
   const [exchange, setExchange] = useState(() => new Set());
   const [error, setError] = useState(null);
@@ -1121,7 +1149,16 @@ function App({ gameId, initial }) {
               onSelect=${selectTile}
               onReorder=${reorderRack}
               onPlaceOnBoard=${placeTileOnBoard}
+              onHover=${game.john_mode ? setHoverLetter : null}
             />
+            ${game.john_mode
+              ? html`<${JohnHint}
+                  letter=${hoverLetter ||
+                  (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
+                    ? rackTiles[selected].letter
+                    : null)}
+                />`
+              : null}
             ${error ? html`<p class="move-error">${error}</p>` : null}
             <div class="controls">
               ${mode === "place"
@@ -1203,6 +1240,7 @@ function App({ gameId, initial }) {
       <aside class="sidebar">
         <div class="game-badges">
           ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
+          ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
           ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
         </div>
         <${Scoreboard} game=${game} />

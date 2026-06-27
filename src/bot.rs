@@ -8,10 +8,13 @@ use crate::game::MoveError;
 use crate::game::{ScoredPlay, apply_move, validate_play};
 use crate::models::{
     BOARD_SIZE, Board, CENTER, Difficulty, Game, GameStatus, Move, MoveKind, Placement, Position,
-    RACK_SIZE, SeatKind, Tile,
+    RACK_SIZE, SeatKind, Tile, WordRule,
 };
 
 const ALL_LETTERS: u32 = (1 << 26) - 1;
+/// Shortest word the board can form. The rule (e.g. Grandpa Mode) is applied
+/// later in validation, not during generation.
+const MIN_WORD_LEN: usize = 2;
 
 fn letter_index(letter: char) -> usize {
     (letter as u8 - b'A') as usize
@@ -57,12 +60,7 @@ fn position(transposed: bool, line: usize, idx: usize) -> Position {
 /// For each empty square, the bitmask of letters that form a valid word in the
 /// cross (perpendicular) direction given its neighbors. Squares with no
 /// perpendicular neighbor allow every letter.
-fn cross_masks(
-    board: &Board,
-    dict: &Dictionary,
-    cross_dir: (isize, isize),
-    min_word_length: usize,
-) -> Vec<u32> {
+fn cross_masks(board: &Board, dict: &Dictionary, cross_dir: (isize, isize)) -> Vec<u32> {
     let (d_row, d_col) = cross_dir;
     let mut masks = vec![0u32; BOARD_SIZE * BOARD_SIZE];
     for row in 0..BOARD_SIZE {
@@ -77,7 +75,7 @@ fn cross_masks(
                 masks[pos.index()] = ALL_LETTERS;
                 continue;
             }
-            if prefix.len() + 1 + suffix.len() < min_word_length {
+            if prefix.len() + 1 + suffix.len() < MIN_WORD_LEN {
                 masks[pos.index()] = 0;
                 continue;
             }
@@ -223,12 +221,7 @@ impl Generator<'_> {
 }
 
 /// Enumerate every legal play for `rack` against `board`, deduplicated.
-pub fn generate_plays(
-    board: &Board,
-    rack: &[Tile],
-    dict: &Dictionary,
-    min_word_length: usize,
-) -> Vec<Vec<Placement>> {
+pub fn generate_plays(board: &Board, rack: &[Tile], dict: &Dictionary) -> Vec<Vec<Placement>> {
     let rack_counts = RackCounts::from_rack(rack);
     let rack_size = rack_counts.total().min(RACK_SIZE);
     let anchors = anchors(board);
@@ -236,7 +229,7 @@ pub fn generate_plays(
 
     for transposed in [false, true] {
         let cross_dir = if transposed { (0, 1) } else { (1, 0) };
-        let masks = cross_masks(board, dict, cross_dir, min_word_length);
+        let masks = cross_masks(board, dict, cross_dir);
         let mut generator = Generator {
             board,
             dict,
@@ -269,12 +262,12 @@ pub fn scored_plays(
     board: &Board,
     rack: &[Tile],
     dict: &Dictionary,
-    min_word_length: usize,
+    rule: WordRule,
 ) -> Vec<(Vec<Placement>, ScoredPlay)> {
-    generate_plays(board, rack, dict, min_word_length)
+    generate_plays(board, rack, dict)
         .into_iter()
         .filter_map(|placements| {
-            validate_play(board, rack, dict, &placements, min_word_length)
+            validate_play(board, rack, dict, &placements, rule)
                 .ok()
                 .map(|scored| (placements, scored))
         })
@@ -289,7 +282,7 @@ pub fn choose_move(
     rng: &mut impl Rng,
 ) -> MoveKind {
     let seat = &game.seats[seat_index];
-    let mut plays = scored_plays(&game.board, &seat.rack, dict, game.min_word_length());
+    let mut plays = scored_plays(&game.board, &seat.rack, dict, game.word_rule());
     if plays.is_empty() {
         if game.bag.len() >= RACK_SIZE {
             return MoveKind::Exchange {

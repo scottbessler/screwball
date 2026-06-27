@@ -170,7 +170,11 @@ fn new_game_form() -> String {
   <div class="form-options">
     <label class="checkbox-label">
       <input type="checkbox" name="john_mode" value="on" />
-      John Mode <span class="option-hint">(no 2-letter words)</span>
+      John Mode <span class="option-hint">(show valid 2-letter words)</span>
+    </label>
+    <label class="checkbox-label">
+      <input type="checkbox" name="grandpa_mode" value="on" />
+      Grandpa Mode <span class="option-hint">(no 2-letter words except am, an, me, hi)</span>
     </label>
     <label>Hints per player
       <select name="hints">
@@ -221,6 +225,7 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
 pub fn game_page(
     view: &GameView,
     initial_json: &str,
+    two_letter_json: &str,
     other_games: &[GameSummary],
     logged_in: bool,
 ) -> String {
@@ -264,6 +269,7 @@ pub fn game_page(
   </div>
   <div id="game-island" data-game-id="{id}"></div>
   <script id="game-state" type="application/json">{initial_json}</script>
+  <script id="two-letter-words" type="application/json">{two_letter_json}</script>
 </section>"#,
         id = view.id,
     );

@@ -63,6 +63,8 @@ pub struct CreateForm {
     #[serde(default)]
     john_mode: Option<String>,
     #[serde(default)]
+    grandpa_mode: Option<String>,
+    #[serde(default)]
     hints: Option<u8>,
 }
 
@@ -97,8 +99,15 @@ pub async fn create_game(
     }
 
     let john_mode = form.john_mode.is_some();
+    let grandpa_mode = form.grandpa_mode.is_some();
     let hints_allowed = form.hints.unwrap_or(0).min(3);
-    let game = game::new_game(specs, john_mode, hints_allowed, &mut rand::thread_rng());
+    let game = game::new_game(
+        specs,
+        john_mode,
+        grandpa_mode,
+        hints_allowed,
+        &mut rand::thread_rng(),
+    );
     let id = game.id;
     state.store.insert(game).await?;
 
@@ -143,6 +152,8 @@ pub async fn game_page(
         .ok_or_else(|| AppError::not_found("game not found"))?;
     let view = GameView::for_viewer(&game, viewer_id(user));
     let initial = serde_json::to_string(&view).map_err(AppError::internal)?;
+    let two_letter =
+        serde_json::to_string(&state.dict.two_letter_words()).map_err(AppError::internal)?;
     let other_games = match user {
         Some(user) => my_game_summaries(&state, user, Some(id)).await,
         None => Vec::new(),
@@ -150,6 +161,7 @@ pub async fn game_page(
     Ok(Html(render::game_page(
         &view,
         &initial,
+        &two_letter,
         &other_games,
         user.is_some(),
     )))
@@ -449,12 +461,11 @@ fn apply_hint(
         });
     }
 
-    let min_word_length = game.min_word_length();
     let plays = bot::scored_plays(
         &game.board,
         &game.seats[seat_index].rack,
         dict,
-        min_word_length,
+        game.word_rule(),
     );
     let best = plays.iter().max_by_key(|p| p.1.points);
 

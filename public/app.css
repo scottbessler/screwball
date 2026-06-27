@@ -818,3 +818,23 @@ section.card + section.card {
   border-radius: 4px;
   padding: 0.15rem 0.5rem;
 }
+
+/* John Mode 2-letter-word helper */
+.john-hint {
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+  line-height: 1.6;
+}
+.john-hint-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+.john-word {
+  display: inline-block;
+  background: var(--board-bg);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  margin: 0 0.15rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}

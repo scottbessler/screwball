@@ -187,8 +187,8 @@ Chill - middle 50%
 Medium - top 25% 
 Hard - top 10%
 Impossible - top (current hard)
-* [ ] Change "John Mode" to actually show the valid 2-letter words that include the selected/hovered-over letter (but not disallow them)
-* [ ] Add "Grandpa Mode" to disallow almost all 2-letter words (allow the super common ones like am, an, me, hi)
+* [x] Change "John Mode" to actually show the valid 2-letter words that include the selected/hovered-over letter (but not disallow them)
+* [x] Add "Grandpa Mode" to disallow almost all 2-letter words (allow the super common ones like am, an, me, hi)
 * [ ] Game start screen doesnt work on mobile (buttons/controls are lost to overflow)
 * [ ] Touch drag+drop on mobile should have the dragged item be above where the touch is so it isnt hidden under your finger
 * [ ] Touch drag+drop drop locations are not forgiving enough (i.e. go a little to far to the left/right/up/down 

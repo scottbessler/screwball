@@ -10,7 +10,7 @@ use crate::board::collect_run;
 use crate::dict::Dictionary;
 use crate::models::{
     BINGO_BONUS, Board, CENTER, Game, GameStatus, Move, MoveKind, PlacedTile, Placement, Position,
-    Premium, RACK_SIZE, SCORELESS_LIMIT, Seat, SeatKind, Tile,
+    Premium, RACK_SIZE, SCORELESS_LIMIT, Seat, SeatKind, Tile, WordRule,
 };
 
 /// Specification for one seat at table-creation time.
@@ -35,7 +35,7 @@ pub enum MoveError {
     NotConnected,
     NoWordFormed,
     InvalidWords(Vec<String>),
-    WordsTooShort(Vec<String>),
+    DisallowedWords(Vec<String>),
     CannotExchange,
     ExchangeTilesNotInRack,
 }
@@ -60,8 +60,8 @@ impl fmt::Display for MoveError {
                 write!(f, "the play must form a word of two or more letters")
             }
             MoveError::InvalidWords(words) => write!(f, "not in dictionary: {}", words.join(", ")),
-            MoveError::WordsTooShort(words) => {
-                write!(f, "too short for John Mode: {}", words.join(", "))
+            MoveError::DisallowedWords(words) => {
+                write!(f, "not allowed in Grandpa Mode: {}", words.join(", "))
             }
             MoveError::CannotExchange => {
                 write!(f, "cannot exchange when fewer than seven tiles remain")
@@ -93,6 +93,7 @@ pub struct ScoredPlay {
 pub fn new_game(
     seats: Vec<SeatSpec>,
     john_mode: bool,
+    grandpa_mode: bool,
     hints_allowed: u8,
     rng: &mut impl Rng,
 ) -> Game {
@@ -123,6 +124,7 @@ pub fn new_game(
         created_at: Utc::now(),
         updated_at: Utc::now(),
         john_mode,
+        grandpa_mode,
         hints_allowed,
         hints_used: vec![0; seat_count],
     }
@@ -134,7 +136,7 @@ pub fn validate_play(
     rack: &[Tile],
     dict: &Dictionary,
     placements: &[Placement],
-    min_word_length: usize,
+    rule: WordRule,
 ) -> Result<ScoredPlay, MoveError> {
     if placements.is_empty() {
         return Err(MoveError::EmptyPlay);
@@ -232,26 +234,28 @@ pub fn validate_play(
 
     let mut scored = Vec::with_capacity(words.len());
     let mut invalid = Vec::new();
-    let mut too_short = Vec::new();
+    let mut disallowed = Vec::new();
     let mut total = 0u32;
     for cells in &words {
         let word = word_string(&scratch, cells);
-        if word.len() < min_word_length {
-            too_short.push(word);
-            continue;
-        }
+        // A word must be in the dictionary first; only then does the rule apply,
+        // so we never report a non-word as merely "disallowed".
         if !dict.contains(&word) {
             invalid.push(word.clone());
+            continue;
+        }
+        if !rule.allows(&word) {
+            disallowed.push(word);
             continue;
         }
         let points = score_word(&scratch, cells, &placed_set);
         total += points;
         scored.push(ScoredWord { word, points });
     }
-    if !too_short.is_empty() {
-        too_short.sort();
-        too_short.dedup();
-        return Err(MoveError::WordsTooShort(too_short));
+    if !disallowed.is_empty() {
+        disallowed.sort();
+        disallowed.dedup();
+        return Err(MoveError::DisallowedWords(disallowed));
     }
     if !invalid.is_empty() {
         invalid.sort();
@@ -358,7 +362,7 @@ pub fn apply_move(
                 &game.seats[seat_index].rack,
                 dict,
                 &placements,
-                game.min_word_length(),
+                game.word_rule(),
             )?;
             for placement in &placements {
                 let needed = if placement.is_blank {

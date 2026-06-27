@@ -118,6 +118,21 @@ impl Dictionary {
         self.word_count
     }
 
+    /// Every valid 2-letter word, uppercase, sorted. Used by John Mode's
+    /// client-side helper. Cheap: 676 lookups.
+    pub fn two_letter_words(&self) -> Vec<String> {
+        let mut words = Vec::new();
+        for a in b'A'..=b'Z' {
+            for b in b'A'..=b'Z' {
+                let word = [a as char, b as char].iter().collect::<String>();
+                if self.contains(&word) {
+                    words.push(word);
+                }
+            }
+        }
+        words
+    }
+
     pub const fn alphabet_size() -> usize {
         ALPHABET
     }
