@@ -209,7 +209,7 @@ fn new_game_form() -> String {
         <span>Grandpa Mode</span>
       </label>
       <span class="info-tooltip" tabindex="0" aria-describedby="grandpa-mode-help">i
-        <span id="grandpa-mode-help" class="tooltip-content" role="tooltip">Disallow 2-letter words except am, an, me, and hi.</span>
+        <span id="grandpa-mode-help" class="tooltip-content" role="tooltip">Disallow obscure 2-letter words; keep common ones like at, in, go, to.</span>
       </span>
     </div>
     <label class="hints-label">Hints per player

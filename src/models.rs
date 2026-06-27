@@ -204,8 +204,13 @@ pub struct Game {
     pub hints_used: Vec<u8>,
 }
 
-/// 2-letter words still allowed in Grandpa Mode.
-pub const GRANDPA_TWO_LETTER: &[&str] = &["AM", "AN", "ME", "HI"];
+/// 2-letter words still allowed in Grandpa Mode: the everyday ones any
+/// non-Scrabble-nerd would recognise. Excludes the obscure dump tiles
+/// (XU, QI, ZA, AA, JO, …) that Grandpa Mode is meant to ban.
+pub const GRANDPA_TWO_LETTER: &[&str] = &[
+    "AM", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "HE", "HI", "IF", "IN", "IS", "IT", "ME", "MY",
+    "NO", "OF", "OH", "ON", "OR", "SO", "TO", "UP", "US", "WE",
+];
 
 /// Which words a play may form, beyond being in the dictionary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

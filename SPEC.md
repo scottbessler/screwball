@@ -213,6 +213,6 @@ Impossible - top (current hard)
 * [x] pwa on ios seems to cache css/js very aggressively — asset URLs now carry a content-hash `?v=`; `/public` is cached immutable, HTML/JSON are no-cache so new asset links are always picked up
 * [x] show how many remaining hints each player has in the score summary if hints are enabled — 💡N badge per human seat in the scoreboard (SSR + client)
 * [ ] consider using https://shopify.github.io/draggable or a similar library to ensure our drag+drop is robust
-* [ ] the grandpa list should include other very common 2 letter words as well
+* [x] the grandpa list should include other very common 2 letter words as well — expanded to AM AN AS AT BE BY DO GO HE HI IF IN IS IT ME MY NO OF OH ON OR SO TO UP US WE
 * [ ] in game log, show word definitions (there has to be some free api somewhere maybe https://dictionaryapi.dev)
 ```

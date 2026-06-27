@@ -69,6 +69,16 @@ fn grandpa_mode_rejects_uncommon_two_letter_words() {
 }
 
 #[test]
+fn grandpa_mode_allows_common_two_letter_words() {
+    let board = Board::new();
+    let rack = vec![letter('T'), letter('O')];
+    let placements = vec![place(7, 7, 'T'), place(7, 8, 'O')];
+    // "TO" is common enough to survive Grandpa Mode.
+    validate_play(&board, &rack, &dict(), &placements, WordRule::Grandpa)
+        .expect("grandpa allows TO");
+}
+
+#[test]
 fn rejects_tiles_not_in_rack() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A')];
