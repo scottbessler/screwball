@@ -44,6 +44,9 @@ pub struct SeatView {
     pub on_turn: bool,
     pub is_you: bool,
     pub open: bool,
+    /// Hints left for this (human) seat when hints are enabled; `None` for bots,
+    /// open seats, or games without hints.
+    pub hints_remaining: Option<u8>,
 }
 
 #[derive(Serialize)]
@@ -98,6 +101,13 @@ impl GameView {
                 on_turn: game.status == GameStatus::Active && game.turn == index,
                 is_you: Some(index) == your_seat,
                 open: matches!(seat.kind, SeatKind::Human { user_id: None }),
+                hints_remaining: match seat.kind {
+                    SeatKind::Human { user_id: Some(_) } if game.hints_allowed > 0 => Some(
+                        game.hints_allowed
+                            .saturating_sub(game.hints_used.get(index).copied().unwrap_or(0)),
+                    ),
+                    _ => None,
+                },
             })
             .collect();
 

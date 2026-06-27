@@ -199,6 +199,13 @@ body {
   background: rgba(180, 69, 31, 0.08);
 }
 
+.hint-count {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
 .badge {
   display: inline-block;
   margin-left: 0.35rem;

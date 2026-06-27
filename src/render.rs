@@ -414,9 +414,13 @@ fn render_scoreboard(view: &GameView) -> String {
             } else {
                 "human".to_string()
             };
+            let hints = match seat.hints_remaining {
+                Some(n) => format!(r#" <span class="hint-count" title="hints left">💡{n}</span>"#),
+                None => String::new(),
+            };
             format!(
                 r#"<tr class="seat{turn}">
-  <td>{name}{you}</td>
+  <td>{name}{you}{hints}</td>
   <td class="muted">{kind}</td>
   <td class="score">{score}</td>
 </tr>"#,

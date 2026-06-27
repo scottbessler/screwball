@@ -477,6 +477,9 @@ function Scoreboard({ game }) {
           <td>
             ${seat.name}
             ${seat.is_you ? html`<span class="badge">you</span>` : null}
+            ${seat.hints_remaining != null
+              ? html`<span class="hint-count" title="hints left">💡${seat.hints_remaining}</span>`
+              : null}
           </td>
           <td class="muted">
             ${seat.open
