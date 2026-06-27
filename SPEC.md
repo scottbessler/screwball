@@ -198,10 +198,10 @@ Impossible - top (current hard)
 * [x] Find and fix an obvious UI bug — undefined `--border` CSS var (missing mobile sidebar separator)
 * [x] Find and fix an obvious UI bug — SSR/demo board center square showed "DW" instead of ★
 * [x] formatting still broken when using the PWA — root cause was stale cached CSS; fixed via versioned asset URLs + no-cache HTML (see PWA caching task)
-* [ ] i should be able to drag letters back and forth on mobile while my finger is below the actual rack. the letter being dragged properly shows up above my finger but the drop targets need to extend lower.
-* [ ] while dragging letters on the rack, we should be previewing the result better
-* [ ] while dragging letters on the rack, the changes to the preview should be more smoothly animated
-* [ ] while dragging letters on the rack, there should not be flickering of the preview
+* [x] i should be able to drag letters back and forth on mobile while my finger is below the actual rack. the letter being dragged properly shows up above my finger but the drop targets need to extend lower. — reorder band now extends ~120px below the rack
+* [x] while dragging letters on the rack, we should be previewing the result better — tiles reorder live toward the nearest tile centre, showing where the dragged tile lands
+* [x] while dragging letters on the rack, the changes to the preview should be more smoothly animated — FLIP animation slides tiles to new positions
+* [x] while dragging letters on the rack, there should not be flickering of the preview — nearest-centre targeting only changes at midpoints (no edge flip-flop); manual reorder-pop removed
 * [ ] should be able to drag a placed letter from 1 spot on board to another
 * [x] Find and fix an obvious UI bug — buttons outside `.form` (sign-out, join, Play word) had default UA borders; reset moved to base `.button`
 * [x] Find and fix an obvious UI bug — scoreboard showed unfilled open seat as "human" instead of "open"

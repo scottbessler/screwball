@@ -3,6 +3,7 @@ import {
   render,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   useMemo,
 } from "/public/vendor/htm-preact.js";
@@ -320,6 +321,59 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
   const dragId = useRef(null);
   const touchState = useRef(null);
   const rackRef = useRef(null);
+  const flipPositions = useRef(new Map());
+
+  // FLIP: smoothly slide rack tiles whenever their order changes (203). The
+  // tile under the finger is excluded — it tracks the drag ghost instead.
+  useLayoutEffect(() => {
+    const rack = rackRef.current;
+    if (!rack) return;
+    const prev = flipPositions.current;
+    const next = new Map();
+    const dragging = touchState.current ? touchState.current.id : null;
+    for (const el of rack.querySelectorAll(".rack-tile[data-tile-id]")) {
+      const id = Number(el.dataset.tileId);
+      const left = el.getBoundingClientRect().left;
+      next.set(id, left);
+      const old = prev.get(id);
+      if (old != null && Math.abs(old - left) > 0.5 && id !== dragging) {
+        const dx = old - left;
+        el.style.transition = "none";
+        el.style.transform = `translateX(${dx}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 0.15s ease";
+          el.style.transform = "";
+        });
+      }
+    }
+    flipPositions.current = next;
+  });
+
+  // Which rack tile the finger is reordering toward: the one whose horizontal
+  // centre is nearest the touch X, within a band that extends well below the
+  // rack so you can drag with your finger under the tiles (201). Returns null
+  // when the finger is away from the rack (i.e. over the board).
+  function rackReorderTarget(x, y) {
+    const rack = rackRef.current;
+    if (!rack) return null;
+    const rect = rack.getBoundingClientRect();
+    const PAD_X = 40;
+    const PAD_TOP = 30;
+    const PAD_BOTTOM = 120;
+    if (x < rect.left - PAD_X || x > rect.right + PAD_X) return null;
+    if (y < rect.top - PAD_TOP || y > rect.bottom + PAD_BOTTOM) return null;
+    let bestId = null;
+    let bestDist = Infinity;
+    for (const el of rack.querySelectorAll(".rack-tile[data-tile-id]")) {
+      const r = el.getBoundingClientRect();
+      const dist = Math.abs(r.left + r.width / 2 - x);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestId = Number(el.dataset.tileId);
+      }
+    }
+    return bestId;
+  }
 
   function handleTouchStart(e, tile) {
     e.preventDefault();
@@ -362,25 +416,20 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         touchState.current.highlightedCell.classList.remove("drag-over");
         touchState.current.highlightedCell = null;
       }
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (el) {
-        const btn = el.closest(".rack-tile");
-        if (btn && btn.dataset.tileId != null) {
-          const targetId = Number(btn.dataset.tileId);
-          if (targetId !== touchState.current.id) {
-            onReorder(touchState.current.id, targetId);
-            touchState.current.id = targetId;
-            btn.classList.remove("reorder-pop");
-            void btn.offsetWidth;
-            btn.classList.add("reorder-pop");
-          }
+      // Over the rack (or just below it): reorder toward the nearest tile.
+      // Otherwise highlight the board cell we'd drop on.
+      const reorderTarget = rackReorderTarget(touch.clientX, touch.clientY);
+      if (reorderTarget != null) {
+        if (reorderTarget !== touchState.current.id) {
+          onReorder(touchState.current.id, reorderTarget);
+          touchState.current.id = reorderTarget;
         }
-      }
-      // Highlight the nearest board cell (forgiving of a slightly-off touch).
-      const cell = cellAtPoint(touch.clientX, touch.clientY);
-      if (cell) {
-        cell.classList.add("drag-over");
-        touchState.current.highlightedCell = cell;
+      } else {
+        const cell = cellAtPoint(touch.clientX, touch.clientY);
+        if (cell) {
+          cell.classList.add("drag-over");
+          touchState.current.highlightedCell = cell;
+        }
       }
     }
   }
@@ -397,9 +446,11 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         touchState.current.highlightedCell.classList.remove("drag-over");
       }
       if (touchState.current.dragging) {
-        // Drop onto the nearest board cell (forgiving of a slightly-off touch).
+        // A drop over the rack band is just a reorder (already applied live).
+        // Otherwise drop onto the nearest board cell (forgiving of a near miss).
         const lastTouch = e.changedTouches[0];
-        const cell = cellAtPoint(lastTouch.clientX, lastTouch.clientY);
+        const overRack = rackReorderTarget(lastTouch.clientX, lastTouch.clientY) != null;
+        const cell = overRack ? null : cellAtPoint(lastTouch.clientX, lastTouch.clientY);
         if (cell) {
           const row = Number(cell.dataset.row);
           const col = Number(cell.dataset.col);
