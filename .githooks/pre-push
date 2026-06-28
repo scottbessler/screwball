@@ -1,0 +1,36 @@
+#!/bin/sh
+# Full local gate for direct pushes to main. Enable with:
+#   git config core.hooksPath .githooks
+# Bypass once with: git push --no-verify
+set -eu
+
+should_run=0
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	case "$remote_ref" in
+	refs/heads/main)
+		should_run=1
+		;;
+	esac
+done
+
+if [ "$should_run" -ne 1 ]; then
+	echo "[pre-push] not pushing main; skipping full local gate"
+	exit 0
+fi
+
+run() {
+	echo
+	echo "[pre-push] $*"
+	"$@"
+}
+
+run cargo fmt --check
+run cargo check --locked
+run cargo check --release --locked
+run cargo clippy --locked --all-targets --all-features
+run cargo test --locked
+run bun run lint
+
+echo
+echo "[pre-push] ok"

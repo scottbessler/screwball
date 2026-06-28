@@ -22,6 +22,17 @@ run = "bun run lint"
 description = "Run all linters"
 depends = ["lint:rust", "lint:js"]
 
+[tasks.check]
+description = "Run the same full gate as CI and the main pre-push hook"
+run = [
+  "cargo fmt --check",
+  "cargo check --locked",
+  "cargo check --release --locked",
+  "cargo clippy --locked --all-targets --all-features",
+  "cargo test --locked",
+  "bun run lint",
+]
+
 [tasks.fix]
 description = "Auto-format/fix Rust and JS"
 run = ["cargo fmt", "bun run lint:fix"]

@@ -60,9 +60,16 @@ In production set `RP_ID`/`RP_ORIGIN` to your real domain (e.g. `RP_ID=play.exam
 
 ```sh
 cargo fmt --check
+cargo check --locked
+cargo check --release --locked
 cargo clippy --locked --all-targets --all-features
 cargo test --locked
+bun run lint
 ```
+
+`mise run setup` enables the repo git hooks. The pre-push hook runs the full
+check gate above automatically when pushing to `main`; `mise run check` runs the
+same gate manually.
 
 ## Deployment
 
