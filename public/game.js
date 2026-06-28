@@ -1,4 +1,5 @@
 import {
+  h,
   html,
   render,
   useState,
@@ -152,8 +153,7 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
     </div>`;
   }
   if (pending) {
-    return html`<div
-      class="cell tile pending-cell"
+    return html`<div class="cell tile pending-cell"
       data-row=${row}
       data-col=${col}
       data-rackid=${pending.rackId}
@@ -162,6 +162,7 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
         e.dataTransfer.setData("text/plain", "pending:" + pending.rackId);
         e.dataTransfer.effectAllowed = "move";
       }}
+      onDragEnd=${() => setRackRecallActive(false)}
       onClick=${onClick}
     >
       <${Tile}
@@ -190,7 +191,17 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
   </div>`;
 }
 
-function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick, onDropTile, onMovePending }) {
+function Board({
+  game,
+  pending,
+  cursor,
+  lastPlaySet,
+  onCellClick,
+  onPendingClick,
+  onDropTile,
+  onMovePending,
+  onRecallPending,
+}) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const boardRef = useRef(null);
   const pinchState = useRef(null);
@@ -278,6 +289,11 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
           pd.highlightedCell = null;
         }
         const target = boardDropPoint(touch, pd.boardDropLiftY);
+        const overRack =
+          isPointOverRack(touch.clientX, touch.clientY) ||
+          isPointOverRack(target.x, target.y);
+        setRackRecallActive(overRack);
+        if (overRack) return;
         const cell = cellAtPoint(target.x, target.y);
         if (cell) {
           cell.classList.add("drag-over");
@@ -314,12 +330,21 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
       const pd = pendingDrag.current;
       if (pd.ghost) pd.ghost.remove();
       if (pd.highlightedCell) pd.highlightedCell.classList.remove("drag-over");
+      setRackRecallActive(false);
       if (pd.dragging) {
         const lastTouch = e.changedTouches[0];
         const target = boardDropPoint(lastTouch, pd.boardDropLiftY);
-        const cell = cellAtPoint(target.x, target.y);
-        if (cell && onMovePending) {
-          onMovePending(pd.rackId, Number(cell.dataset.row), Number(cell.dataset.col));
+        if (
+          (isPointOverRack(lastTouch.clientX, lastTouch.clientY) ||
+            isPointOverRack(target.x, target.y)) &&
+          onRecallPending
+        ) {
+          onRecallPending(pd.rackId);
+        } else {
+          const cell = cellAtPoint(target.x, target.y);
+          if (cell && onMovePending) {
+            onMovePending(pd.rackId, Number(cell.dataset.row), Number(cell.dataset.col));
+          }
         }
       }
       pendingDrag.current = null;
@@ -340,6 +365,37 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
       panStartRef.current = null;
     }
   }
+
+  function handleBoardTouchCancel() {
+    if (pendingDrag.current) {
+      if (pendingDrag.current.ghost) pendingDrag.current.ghost.remove();
+      if (pendingDrag.current.highlightedCell) {
+        pendingDrag.current.highlightedCell.classList.remove("drag-over");
+      }
+      pendingDrag.current = null;
+    }
+    setRackRecallActive(false);
+  }
+
+  useEffect(() => {
+    function onDocumentTouchMove(e) {
+      if (pendingDrag.current) handleBoardTouchMove(e);
+    }
+    function onDocumentTouchEnd(e) {
+      if (pendingDrag.current) handleBoardTouchEnd(e);
+    }
+    function onDocumentTouchCancel() {
+      if (pendingDrag.current) handleBoardTouchCancel();
+    }
+    document.addEventListener("touchmove", onDocumentTouchMove, { passive: false });
+    document.addEventListener("touchend", onDocumentTouchEnd, { passive: false });
+    document.addEventListener("touchcancel", onDocumentTouchCancel, { passive: false });
+    return () => {
+      document.removeEventListener("touchmove", onDocumentTouchMove);
+      document.removeEventListener("touchend", onDocumentTouchEnd);
+      document.removeEventListener("touchcancel", onDocumentTouchCancel);
+    };
+  });
 
   // Double-tap to reset zoom
   const lastTapRef = useRef(0);
@@ -393,6 +449,7 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
     onTouchStart=${(e) => { handleDoubleTap(e); handleBoardTouchStart(e); }}
     onTouchMove=${handleBoardTouchMove}
     onTouchEnd=${handleBoardTouchEnd}
+    onTouchCancel=${handleBoardTouchCancel}
   >${cells}</div>`;
 }
 
@@ -431,6 +488,31 @@ function isPointOverBoard(x, y) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
+function isPointOverRack(x, y) {
+  const rack = document.querySelector(".rack");
+  if (!rack) return false;
+  const rect = rack.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function setRackRecallActive(active) {
+  const rack = document.querySelector(".rack");
+  if (rack) rack.classList.toggle("rack-recall-over", active);
+}
+
+function pendingRackIdFromDrop(e) {
+  const data = e.dataTransfer ? e.dataTransfer.getData("text/plain") : "";
+  if (!data.startsWith("pending:")) return null;
+  const rackId = Number(data.slice(8));
+  return Number.isFinite(rackId) ? rackId : null;
+}
+
+function handleRackDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove("rack-recall-over");
+  }
+}
+
 function dragGhostLiftPx() {
   const fontSize = Number.parseFloat(
     getComputedStyle(document.documentElement).fontSize,
@@ -450,7 +532,17 @@ function positionDragGhost(ghost, x, y) {
   ghost.style.setProperty("--drag-y", `${y}px`);
 }
 
-function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard, onHover }) {
+function Rack({
+  tiles,
+  selected,
+  mode,
+  exchange,
+  onSelect,
+  onReorder,
+  onPlaceOnBoard,
+  onRecallPending,
+  onHover,
+}) {
   const dragId = useRef(null);
   const dragSourceEl = useRef(null);
   const dragRackTarget = useRef(null);
@@ -589,6 +681,24 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
   function handleDesktopDragEnd() {
     commitDesktopRackTarget();
     finishDesktopDrag();
+  }
+
+  function handleRackDragOver(e) {
+    if (dragId.current !== null) return;
+    e.preventDefault();
+    clearRackInsertionMarker();
+    e.currentTarget.classList.add("rack-recall-over");
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "move";
+    }
+  }
+
+  function handleRackDrop(e) {
+    const rackId = pendingRackIdFromDrop(e);
+    e.currentTarget.classList.remove("rack-recall-over");
+    if (rackId == null || !onRecallPending) return;
+    e.preventDefault();
+    onRecallPending(rackId);
   }
 
   function touchDropTarget(touch, state) {
@@ -775,7 +885,10 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
     };
   });
 
-  return html`<div class="rack" ref=${rackRef}>
+  return html`<div class="rack" ref=${rackRef}
+    onDragOver=${handleRackDragOver}
+    onDragLeave=${handleRackDragLeave}
+    onDrop=${handleRackDrop}>
     ${tiles.map((tile) => {
       // Placed tile: hold its slot with an inert placeholder so nothing reflows.
       if (tile.used) {
@@ -790,8 +903,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
       ]
         .filter(Boolean)
         .join(" ");
-      return html`<button
-        type="button"
+      return html`<button type="button"
         key=${tile.id}
         class=${cls}
         data-tile-id=${tile.id}
@@ -813,6 +925,15 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
           }
         }}
         onDrop=${(e) => {
+          const pendingRackId = pendingRackIdFromDrop(e);
+          if (pendingRackId != null && onRecallPending) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove("rack-recall-over");
+            setRackRecallActive(false);
+            onRecallPending(pendingRackId);
+            return;
+          }
           e.preventDefault();
           if (dragId.current !== null && dragId.current !== tile.id) {
             const target = tileInsertionTarget(tile.id, e.clientX);
@@ -962,8 +1083,7 @@ function Results({ game }) {
     <h2>Game over</h2>
     <ol class="results-list">
       ${ranked.map(
-        (seat) => html`<li
-          key=${seat.index}
+        (seat) => html`<li key=${seat.index}
           class=${winners.has(seat.index) ? "winner" : ""}
         >
           <span class="results-name">
@@ -999,8 +1119,7 @@ function BlankPicker({ onPick, onCancel }) {
       <p class="muted">Pick the letter this blank tile represents.</p>
       <div class="letter-grid">
         ${LETTERS.map(
-          (l) => html`<button
-            type="button"
+          (l) => html`<button type="button"
             key=${l}
             class="letter-btn"
             onClick=${() => onPick(l)}
@@ -1597,154 +1716,164 @@ function App({ gameId, initial }) {
 
   const controlsDisabled = !yourTurn || busy;
   const finished = game.status === "Finished";
+  const recallByRackId = (rackId) => recallTile({ rackId });
 
-  return html`<div class="game">
-    <h1 class="status">${statusText(game)}</h1>
-    ${finished ? html`<${Results} game=${game} />` : null}
-    <div class="game-layout">
-      <div class="board-wrap">
-        <${Board}
-          game=${game}
-          pending=${pending}
-          cursor=${yourTurn && mode === "place" ? cursor : null}
-          lastPlaySet=${lastPlaySet}
-          onCellClick=${onCellClick}
-          onPendingClick=${recallTile}
-          onDropTile=${dropTileOnBoard}
-          onMovePending=${movePending}
-        />
-        ${!seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null}
-      </div>
-      ${seated && !finished
-        ? html`<div class="rack-area">
-            <${Rack}
-              tiles=${rack}
-              selected=${selected}
-              mode=${mode}
-              exchange=${exchange}
-              onSelect=${selectTile}
-              onReorder=${reorderRack}
-              onPlaceOnBoard=${placeTileOnBoard}
-              onHover=${game.john_mode ? setHoverLetter : null}
-            />
-            ${game.john_mode
-              ? html`<${JohnHint}
-                  letter=${hoverLetter ||
-                  (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
-                    ? rackTiles[selected].letter
-                    : null)}
-                />`
-              : null}
-            ${error ? html`<p class="move-error">${error}</p>` : null}
-            <div class="controls">
-              ${mode === "place"
-                ? html`<button
-                      type="button"
-                      class="button"
-                      disabled=${controlsDisabled}
-                      onClick=${submitPlay}
-                    >
-                      Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
-                    </button>
-                    <button
-                      type="button"
-                      class="button ghost"
-                      disabled=${busy || !pending.length}
-                      onClick=${() => {
-                        setPending([]);
-                        setCursor(null);
-                      }}
-                    >
-                      Recall
-                    </button>
-                    <button
-                      type="button"
-                      class="button ghost"
-                      disabled=${busy}
-                      onClick=${shuffleRack}
-                    >
-                      Shuffle
-                    </button>
-                    <button
-                      type="button"
-                      class="button ghost"
-                      disabled=${controlsDisabled}
-                      onClick=${() => {
-                        reset();
-                        setMode("exchange");
-                      }}
-                    >
-                      Exchange…
-                    </button>
-                    <button
-                      type="button"
-                      class="button ghost"
-                      disabled=${controlsDisabled}
-                      onClick=${() => postMove({ kind: "pass" })}
-                    >
-                      Pass
-                    </button>`
-                : html`<button
-                      type="button"
-                      class="button"
-                      disabled=${controlsDisabled}
-                      onClick=${submitExchange}
-                    >
-                      Confirm exchange
-                    </button>
-                    <button
-                      type="button"
-                      class="button ghost"
-                      disabled=${busy}
-                      onClick=${reset}
-                    >
-                      Cancel
-                    </button>`}
-            </div>
-            ${game.hints_allowed > 0
-              ? html`<div>
-                  <button type="button" class="hint-btn"
-                    disabled=${!yourTurn || hintBusy || hintsRemaining <= 0}
-                    onClick=${requestHint}>
-                    Hint (${hintsRemaining} left)
-                  </button>
-                  ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
-                </div>`
-              : null}
-          </div>`
-        : null}
-      <aside class="sidebar">
-        <div class="game-badges">
-          ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
-          ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
-          ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
-        </div>
-        <${Scoreboard} game=${game} />
-        <p class="muted">Tiles in bag: ${game.bag_count}</p>
-        <${MoveLog} game=${game} />
-        <${OtherGames} gameId=${gameId} />
-      </aside>
+  const boardWrap = h("div", { class: "board-wrap" }, [
+    html`<${Board}
+      game=${game}
+      pending=${pending}
+      cursor=${yourTurn && mode === "place" ? cursor : null}
+      lastPlaySet=${lastPlaySet}
+      onCellClick=${onCellClick}
+      onPendingClick=${recallTile}
+      onDropTile=${dropTileOnBoard}
+      onMovePending=${movePending}
+      onRecallPending=${recallByRackId}
+    />`,
+    !seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null,
+  ]);
+  const controls = h(
+    "div",
+    { class: "controls" },
+    mode === "place"
+      ? html`<button type="button"
+            class="button"
+            disabled=${controlsDisabled}
+            onClick=${submitPlay}
+          >
+            Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
+          </button>
+          <button
+            type="button"
+            class="button ghost"
+            disabled=${busy || !pending.length}
+            onClick=${() => {
+              setPending([]);
+              setCursor(null);
+            }}
+          >
+            Recall
+          </button>
+          <button
+            type="button"
+            class="button ghost"
+            disabled=${busy}
+            onClick=${shuffleRack}
+          >
+            Shuffle
+          </button>
+          <button
+            type="button"
+            class="button ghost"
+            disabled=${controlsDisabled}
+            onClick=${() => {
+              reset();
+              setMode("exchange");
+            }}
+          >
+            Exchange…
+          </button>
+          <button
+            type="button"
+            class="button ghost"
+            disabled=${controlsDisabled}
+            onClick=${() => postMove({ kind: "pass" })}
+          >
+            Pass
+          </button>`
+      : html`<button type="button"
+            class="button"
+            disabled=${controlsDisabled}
+            onClick=${submitExchange}
+          >
+            Confirm exchange
+          </button>
+          <button
+            type="button"
+            class="button ghost"
+            disabled=${busy}
+            onClick=${reset}
+          >
+            Cancel
+          </button>`,
+  );
+  const rackArea = seated && !finished
+    ? h("div", { class: "rack-area" }, [
+        html`<${Rack}
+          tiles=${rack}
+          selected=${selected}
+          mode=${mode}
+          exchange=${exchange}
+          onSelect=${selectTile}
+          onReorder=${reorderRack}
+          onPlaceOnBoard=${placeTileOnBoard}
+          onRecallPending=${recallByRackId}
+          onHover=${game.john_mode ? setHoverLetter : null}
+        />`,
+        game.john_mode
+          ? html`<${JohnHint}
+              letter=${hoverLetter ||
+              (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
+                ? rackTiles[selected].letter
+                : null)}
+            />`
+          : null,
+        error ? html`<p class="move-error">${error}</p>` : null,
+        controls,
+        game.hints_allowed > 0
+          ? html`<div>
+              <button type="button" class="hint-btn"
+                disabled=${!yourTurn || hintBusy || hintsRemaining <= 0}
+                onClick=${requestHint}>
+                Hint (${hintsRemaining} left)
+              </button>
+              ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
+            </div>`
+          : null,
+      ])
+    : null;
+  const sidebar = html`<aside class="sidebar">
+    <div class="game-badges">
+      ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
+      ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
+      ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
-    ${blankPrompt
-      ? html`<${BlankPicker}
-          onPick=${(letter) => {
-            setPending([
-              ...pending,
-              {
-                row: blankPrompt.row,
-                col: blankPrompt.col,
-                letter,
-                isBlank: true,
-                rackId: blankPrompt.rackId,
-              },
-            ]);
-            setBlankPrompt(null);
-            setSelected(null);
-          }}
-          onCancel=${() => setBlankPrompt(null)}
-        />`
-      : null}
-  </div>`;
+    <${Scoreboard} game=${game} />
+    <p class="muted">Tiles in bag: ${game.bag_count}</p>
+    <${MoveLog} game=${game} />
+    <${OtherGames} gameId=${gameId} />
+  </aside>`;
+  const layout = h("div", { class: "game-layout" }, [
+    boardWrap,
+    rackArea,
+    sidebar,
+  ]);
+  const blankPicker = blankPrompt
+    ? html`<${BlankPicker}
+        onPick=${(letter) => {
+          setPending([
+            ...pending,
+            {
+              row: blankPrompt.row,
+              col: blankPrompt.col,
+              letter,
+              isBlank: true,
+              rackId: blankPrompt.rackId,
+            },
+          ]);
+          setBlankPrompt(null);
+          setSelected(null);
+        }}
+        onCancel=${() => setBlankPrompt(null)}
+      />`
+    : null;
+
+  return h("div", { class: "game" }, [
+    html`<h1 class="status">${statusText(game)}</h1>`,
+    finished ? html`<${Results} game=${game} />` : null,
+    layout,
+    blankPicker,
+  ]);
 }
 
 function boot() {

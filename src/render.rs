@@ -5,9 +5,9 @@ use uuid::Uuid;
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
 use crate::view::{GameSummary, GameView, SquareView, premium_code};
 
-/// Content-hash of the static assets, set once at startup. Appended to asset
-/// URLs as `?v=…` so a deploy busts aggressive (PWA) caches without touching
-/// filenames. Empty until set.
+/// Content-hash of the static assets, set once at startup for release builds.
+/// Debug builds hash each asset at render time so local edits do not keep
+/// pointing browsers at stale immutable URLs.
 static ASSET_VERSION: OnceLock<String> = OnceLock::new();
 
 pub fn set_asset_version(version: String) {
@@ -20,7 +20,23 @@ fn asset_version() -> &'static str {
 
 /// A `/public/...` URL with the current asset version appended for cache-busting.
 fn asset(path: &str) -> String {
-    format!("{path}?v={}", asset_version())
+    format!("{path}?v={}", asset_version_for(path))
+}
+
+fn asset_version_for(path: &str) -> String {
+    #[cfg(debug_assertions)]
+    {
+        use std::hash::{Hash, Hasher};
+
+        let file = path.trim_start_matches('/');
+        if let Ok(bytes) = std::fs::read(file) {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            bytes.hash(&mut hasher);
+            return format!("{:x}", hasher.finish());
+        }
+    }
+
+    asset_version().to_string()
 }
 
 pub fn escape(input: &str) -> String {

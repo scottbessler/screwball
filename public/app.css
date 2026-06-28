@@ -418,12 +418,18 @@ section.card + section.card {
   min-height: 3rem;
 }
 
+.rack.rack-recall-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .rack-tile {
   position: relative;
   width: 2.4rem;
   height: 2.4rem;
   background: var(--tile);
   border: 1px solid var(--tile-edge);
+  color: var(--ink);
   border-radius: 4px;
   font: inherit;
   font-weight: 700;

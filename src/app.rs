@@ -60,14 +60,13 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// Cache policy: versioned `/public` asset URLs (`?v=hash`) are content-addressed
-/// so cache them immutably; everything else (HTML pages, JSON) is no-cache so a
-/// deploy's new asset links are always picked up — fixes iOS PWA serving stale
-/// CSS/JS.
+/// Cache policy: release `/public` asset URLs (`?v=hash`) are content-addressed
+/// so cache them immutably. Debug builds use no-cache because local files can
+/// change without restarting the server, and stale JS/CSS is painful to debug.
 async fn cache_control(request: Request, next: Next) -> Response {
     let is_asset = request.uri().path().starts_with("/public/");
     let mut response = next.run(request).await;
-    let value = if is_asset {
+    let value = if is_asset && !cfg!(debug_assertions) {
         "public, max-age=31536000, immutable"
     } else {
         "no-cache"

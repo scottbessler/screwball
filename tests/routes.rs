@@ -169,6 +169,23 @@ async fn home_page_logged_out_shows_signin() {
 }
 
 #[tokio::test]
+async fn public_assets_are_not_immutable_in_debug_builds() {
+    let app = test_app().await;
+    let response = app
+        .router()
+        .oneshot(get("/public/game.js?v=stale-version", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let cache_control = response
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    assert_eq!(cache_control, "no-cache");
+}
+
+#[tokio::test]
 async fn home_page_logged_in_shows_new_game() {
     let app = test_app().await;
     let (_user, cookie) = app.new_session();
@@ -379,6 +396,30 @@ async fn game_page_escapes_script_in_embedded_state() {
         .expect("game-state script closes");
     assert!(!json_text.contains("</script>"));
     assert!(json_text.contains("<\\/script>"));
+}
+
+#[tokio::test]
+async fn game_page_does_not_render_literal_div_text_lines() {
+    let app = test_app().await;
+    let (_user, cookie) = app.register("player", "Player").await;
+
+    let create = app
+        .router()
+        .oneshot(post_form("/games", Some(&cookie), "seat2=medium"))
+        .await
+        .unwrap();
+    let location = location_of(&create);
+
+    let page = app
+        .router()
+        .oneshot(get(&location, Some(&cookie)))
+        .await
+        .unwrap();
+    let html = body_string(page).await;
+    assert!(
+        !html.lines().any(|line| line.trim() == "div"),
+        "game page should not emit standalone literal `div` text nodes"
+    );
 }
 
 #[tokio::test]
