@@ -23,19 +23,22 @@ fn asset(path: &str) -> String {
     format!("{path}?v={}", asset_version_for(path))
 }
 
+#[cfg(debug_assertions)]
 fn asset_version_for(path: &str) -> String {
-    #[cfg(debug_assertions)]
-    {
-        use std::hash::{Hash, Hasher};
+    use std::hash::{Hash, Hasher};
 
-        let file = path.trim_start_matches('/');
-        if let Ok(bytes) = std::fs::read(file) {
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            bytes.hash(&mut hasher);
-            return format!("{:x}", hasher.finish());
-        }
+    let file = path.trim_start_matches('/');
+    if let Ok(bytes) = std::fs::read(file) {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        return format!("{:x}", hasher.finish());
     }
 
+    asset_version().to_string()
+}
+
+#[cfg(not(debug_assertions))]
+fn asset_version_for(_path: &str) -> String {
     asset_version().to_string()
 }
 
