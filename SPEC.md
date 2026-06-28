@@ -222,7 +222,12 @@ Impossible - top (current hard)
 V1: Docker builder stage must copy every compile-time embedded static asset
 before `cargo build --release`.
 
+V2: Docker builder and runtime images must pin the same Debian suite for
+native-library ABI compatibility.
+
 ## §B Bug log
 
 B1|2026-06-28|Docker build compiled `routes.rs` with
 `include_str!("../public/sw.js")` before `public/` existed in builder stage|V1
+B2|2026-06-28|Docker builder used floating `rust:1.90-slim` linked against
+OpenSSL 3.2+ while runtime used Bookworm `libssl3`|V2
