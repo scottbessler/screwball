@@ -1168,6 +1168,7 @@ function OtherGames({ gameId }) {
             }
           }
           prevTurnIds.current = nowTurn;
+          setTurnAffordanceSource("other-games", nowTurn.size);
           setGames(data);
         }
       } catch {
@@ -1178,6 +1179,7 @@ function OtherGames({ gameId }) {
     const timer = setInterval(load, 5000);
     return () => {
       active = false;
+      setTurnAffordanceSource("other-games", 0);
       clearInterval(timer);
     };
   }, []);
@@ -1224,6 +1226,39 @@ function notifyTurn(body, url) {
 }
 
 const BASE_FAVICON = "/public/favicon.svg";
+const turnAffordanceSources = new Map();
+let turnAffordanceCount = null;
+
+function setTurnAffordanceSource(source, count) {
+  const safeCount = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0;
+  if (safeCount > 0) {
+    turnAffordanceSources.set(source, safeCount);
+  } else {
+    turnAffordanceSources.delete(source);
+  }
+  updateTurnAffordances();
+}
+
+function updateTurnAffordances() {
+  const count = [...turnAffordanceSources.values()]
+    .reduce((total, sourceCount) => total + sourceCount, 0);
+  if (count === turnAffordanceCount) return;
+  turnAffordanceCount = count;
+  setFavicon(count > 0);
+  setAppBadge(count);
+}
+
+function setAppBadge(count) {
+  try {
+    if (count > 0 && "setAppBadge" in navigator) {
+      navigator.setAppBadge(count).catch(() => {});
+    } else if (count === 0 && "clearAppBadge" in navigator) {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  } catch {
+    /* Badging support is optional and browser-dependent. */
+  }
+}
 
 function setFavicon(yourTurn) {
   const old = document.querySelector('link[rel="icon"]');
@@ -1307,8 +1342,8 @@ function App({ gameId, initial }) {
   }, [game]);
 
   useEffect(() => {
-    setFavicon(yourTurn);
-    return () => setFavicon(false);
+    setTurnAffordanceSource("current-game", yourTurn ? 1 : 0);
+    return () => setTurnAffordanceSource("current-game", 0);
   }, [yourTurn]);
 
   useEffect(() => {

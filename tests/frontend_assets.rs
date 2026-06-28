@@ -86,6 +86,27 @@ fn rack_recall_and_tile_text_styles_are_present() {
     );
 }
 
+#[test]
+fn pwa_turn_affordance_uses_badging_api() {
+    assert!(
+        GAME_JS.contains("function setTurnAffordanceSource(source, count)")
+            && GAME_JS.contains("function updateTurnAffordances()"),
+        "turn affordances should be tracked from multiple game sources",
+    );
+    assert!(
+        GAME_JS.contains("\"setAppBadge\" in navigator")
+            && GAME_JS.contains("navigator.setAppBadge(count)")
+            && GAME_JS.contains("\"clearAppBadge\" in navigator")
+            && GAME_JS.contains("navigator.clearAppBadge()"),
+        "PWA icon affordance should use the guarded Badging API",
+    );
+    assert!(
+        GAME_JS.contains("setTurnAffordanceSource(\"current-game\", yourTurn ? 1 : 0)")
+            && GAME_JS.contains("setTurnAffordanceSource(\"other-games\", nowTurn.size)"),
+        "badge count should include the current game and other games where it is your turn",
+    );
+}
+
 fn css_rule_contains(selector: &str, declaration: &str) -> bool {
     let selector_start = format!("{selector} {{");
     let Some(start) = APP_CSS.find(&selector_start) else {
