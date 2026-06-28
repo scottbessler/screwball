@@ -321,18 +321,48 @@ body {
   margin: 0;
 }
 
-.game-list li {
+.game-list-item {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--line);
 }
 
 .game-list a {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
+}
+
+.game-list-item.is-finished {
+  color: var(--muted);
+  background: rgba(216, 210, 196, 0.16);
+  padding-inline: 0.4rem;
+}
+
+.game-list-item.is-finished a {
+  color: #8f5a44;
+}
+
+.game-list-item.is-finished .game-list-status {
+  color: #8a93a3;
+}
+
+.game-list-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.95rem 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.game-list-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
 }
 
 section.card + section.card {
@@ -419,6 +449,28 @@ section.card + section.card {
   transform: translateY(-4px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   border-color: var(--accent);
+}
+
+.rack-tile.rack-insert-before::before,
+.rack-tile.rack-insert-after::after {
+  content: "";
+  position: absolute;
+  top: -0.28rem;
+  bottom: -0.28rem;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.rack-tile.rack-insert-before::before {
+  left: -0.34rem;
+}
+
+.rack-tile.rack-insert-after::after {
+  right: -0.34rem;
 }
 
 /* Empty slot left by a tile placed on the board this turn. */
@@ -649,6 +701,8 @@ section.card + section.card {
 
 .rack-tile-ghost {
   position: fixed;
+  left: 0;
+  top: 0;
   z-index: 9999;
   pointer-events: none;
   width: 2.4rem;
@@ -662,14 +716,19 @@ section.card + section.card {
   font-weight: 700;
   font-size: 1.05rem;
   box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+  will-change: transform;
   /* Lifted well above the fingertip so the tile stays visible while dragging. */
-  transform: translate(-50%, -150%) scale(1.1);
+  transform: translate3d(var(--drag-x, 0), var(--drag-y, 0), 0) translate(-50%, -150%) scale(1.1);
   animation: ghost-pickup 0.12s ease-out;
 }
 
 @keyframes ghost-pickup {
-  from { transform: translate(-50%, -50%) scale(0.9); }
-  to   { transform: translate(-50%, -150%) scale(1.1); }
+  from {
+    transform: translate3d(var(--drag-x, 0), var(--drag-y, 0), 0) translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    transform: translate3d(var(--drag-x, 0), var(--drag-y, 0), 0) translate(-50%, -150%) scale(1.1);
+  }
 }
 
 /* Pending tiles pop in smoothly when placed on the board. */

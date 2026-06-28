@@ -201,6 +201,7 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
           startY: e.touches[0].clientY,
           dragging: false,
           ghost: null,
+          boardDropLiftY: 0,
           letter: letterEl ? letterEl.textContent : "",
           highlightedCell: null,
         };
@@ -244,20 +245,22 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
         const ghost = document.createElement("div");
         ghost.className = "rack-tile-ghost";
         ghost.textContent = pd.letter;
+        positionDragGhost(ghost, touch.clientX, touch.clientY);
         document.body.appendChild(ghost);
+        pd.boardDropLiftY = dragGhostLiftPx();
         pd.ghost = ghost;
       }
       if (pd.dragging) {
         e.preventDefault();
         if (pd.ghost) {
-          pd.ghost.style.left = touch.clientX + "px";
-          pd.ghost.style.top = touch.clientY + "px";
+          positionDragGhost(pd.ghost, touch.clientX, touch.clientY);
         }
         if (pd.highlightedCell) {
           pd.highlightedCell.classList.remove("drag-over");
           pd.highlightedCell = null;
         }
-        const cell = cellAtPoint(touch.clientX, touch.clientY);
+        const target = boardDropPoint(touch, pd.boardDropLiftY);
+        const cell = cellAtPoint(target.x, target.y);
         if (cell) {
           cell.classList.add("drag-over");
           pd.highlightedCell = cell;
@@ -295,7 +298,8 @@ function Board({ game, pending, cursor, lastPlaySet, onCellClick, onPendingClick
       if (pd.highlightedCell) pd.highlightedCell.classList.remove("drag-over");
       if (pd.dragging) {
         const lastTouch = e.changedTouches[0];
-        const cell = cellAtPoint(lastTouch.clientX, lastTouch.clientY);
+        const target = boardDropPoint(lastTouch, pd.boardDropLiftY);
+        const cell = cellAtPoint(target.x, target.y);
         if (cell && onMovePending) {
           onMovePending(pd.rackId, Number(cell.dataset.row), Number(cell.dataset.col));
         }
@@ -396,6 +400,25 @@ function cellAtPoint(x, y) {
   return null;
 }
 
+function dragGhostLiftPx() {
+  const fontSize = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  return 2.4 * (Number.isFinite(fontSize) ? fontSize : 16);
+}
+
+function boardDropPoint(touch, liftY) {
+  return {
+    x: touch.clientX,
+    y: touch.clientY - liftY,
+  };
+}
+
+function positionDragGhost(ghost, x, y) {
+  ghost.style.setProperty("--drag-x", `${x}px`);
+  ghost.style.setProperty("--drag-y", `${y}px`);
+}
+
 function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnBoard, onHover }) {
   const dragId = useRef(null);
   const touchState = useRef(null);
@@ -409,7 +432,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
     if (!rack) return;
     const prev = flipPositions.current;
     const next = new Map();
-    const dragging = touchState.current ? touchState.current.id : null;
+    const dragging = touchState.current ? touchState.current.originalId : null;
     for (const el of rack.querySelectorAll(".rack-tile[data-tile-id]")) {
       const id = Number(el.dataset.tileId);
       const left = el.getBoundingClientRect().left;
@@ -432,7 +455,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
   // centre is nearest the touch X, within a band that extends well below the
   // rack so you can drag with your finger under the tiles (201). Returns null
   // when the finger is away from the rack (i.e. over the board).
-  function rackReorderTarget(x, y) {
+  function rackReorderTarget(x, y, draggedId) {
     const rack = rackRef.current;
     if (!rack) return null;
     const rect = rack.getBoundingClientRect();
@@ -442,16 +465,58 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
     if (x < rect.left - PAD_X || x > rect.right + PAD_X) return null;
     if (y < rect.top - PAD_TOP || y > rect.bottom + PAD_BOTTOM) return null;
     let bestId = null;
+    let bestSide = "before";
     let bestDist = Infinity;
     for (const el of rack.querySelectorAll(".rack-tile[data-tile-id]")) {
+      const id = Number(el.dataset.tileId);
+      if (id === draggedId) continue;
       const r = el.getBoundingClientRect();
-      const dist = Math.abs(r.left + r.width / 2 - x);
+      const center = r.left + r.width / 2;
+      const dist = Math.abs(center - x);
       if (dist < bestDist) {
         bestDist = dist;
-        bestId = Number(el.dataset.tileId);
+        bestId = id;
+        bestSide = x < center ? "before" : "after";
       }
     }
-    return bestId;
+    return bestId == null ? null : { id: bestId, side: bestSide };
+  }
+
+  function tileInsertionTarget(tileId, x) {
+    const rack = rackRef.current;
+    if (!rack) return { id: tileId, side: "before" };
+    const el = rack.querySelector(`.rack-tile[data-tile-id="${tileId}"]`);
+    if (!el) return { id: tileId, side: "before" };
+    const rect = el.getBoundingClientRect();
+    return {
+      id: tileId,
+      side: x < rect.left + rect.width / 2 ? "before" : "after",
+    };
+  }
+
+  function clearRackInsertionMarker() {
+    const rack = rackRef.current;
+    if (!rack) return;
+    for (const el of rack.querySelectorAll(".rack-insert-before,.rack-insert-after")) {
+      el.classList.remove("rack-insert-before", "rack-insert-after");
+    }
+  }
+
+  function showRackInsertionMarker(target) {
+    clearRackInsertionMarker();
+    const rack = rackRef.current;
+    if (!rack || !target) return;
+    const el = rack.querySelector(`.rack-tile[data-tile-id="${target.id}"]`);
+    if (!el) return;
+    el.classList.add(target.side === "before" ? "rack-insert-before" : "rack-insert-after");
+  }
+
+  function shouldReorderToward(draggedId, target) {
+    const from = tiles.findIndex((tile) => tile.id === draggedId);
+    const to = tiles.findIndex((tile) => tile.id === target.id);
+    if (from === -1 || to === -1 || from === to) return false;
+    const alreadyBeforeTarget = from < to;
+    return target.side === "before" ? !alreadyBeforeTarget : alreadyBeforeTarget;
   }
 
   function handleTouchStart(e, tile) {
@@ -464,6 +529,8 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
       startY: touch.clientY,
       dragging: false,
       ghost: null,
+      boardDropLiftY: 0,
+      lastReorderKey: null,
       sourceEl: e.currentTarget,
     };
   }
@@ -480,15 +547,16 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
       const ghost = document.createElement("div");
       ghost.className = "rack-tile-ghost";
       ghost.textContent = tile ? (tile.is_blank ? " " : tile.letter) : "";
+      positionDragGhost(ghost, touch.clientX, touch.clientY);
       document.body.appendChild(ghost);
+      touchState.current.boardDropLiftY = dragGhostLiftPx();
       touchState.current.ghost = ghost;
     }
     if (touchState.current.dragging) {
       e.preventDefault();
       const ghost = touchState.current.ghost;
       if (ghost) {
-        ghost.style.left = touch.clientX + "px";
-        ghost.style.top = touch.clientY + "px";
+        positionDragGhost(ghost, touch.clientX, touch.clientY);
       }
       // Clear previous highlight
       if (touchState.current.highlightedCell) {
@@ -497,14 +565,25 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
       }
       // Over the rack (or just below it): reorder toward the nearest tile.
       // Otherwise highlight the board cell we'd drop on.
-      const reorderTarget = rackReorderTarget(touch.clientX, touch.clientY);
+      const reorderTarget = rackReorderTarget(
+        touch.clientX,
+        touch.clientY,
+        touchState.current.originalId,
+      );
       if (reorderTarget != null) {
-        if (reorderTarget !== touchState.current.id) {
-          onReorder(touchState.current.id, reorderTarget);
-          touchState.current.id = reorderTarget;
+        showRackInsertionMarker(reorderTarget);
+        const key = `${reorderTarget.id}:${reorderTarget.side}`;
+        if (key !== touchState.current.lastReorderKey) {
+          touchState.current.lastReorderKey = key;
+          if (shouldReorderToward(touchState.current.originalId, reorderTarget)) {
+            onReorder(touchState.current.originalId, reorderTarget.id);
+          }
         }
       } else {
-        const cell = cellAtPoint(touch.clientX, touch.clientY);
+        clearRackInsertionMarker();
+        touchState.current.lastReorderKey = null;
+        const target = boardDropPoint(touch, touchState.current.boardDropLiftY);
+        const cell = cellAtPoint(target.x, target.y);
         if (cell) {
           cell.classList.add("drag-over");
           touchState.current.highlightedCell = cell;
@@ -521,6 +600,7 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
       if (touchState.current.sourceEl) {
         touchState.current.sourceEl.classList.remove("dragging");
       }
+      clearRackInsertionMarker();
       if (touchState.current.highlightedCell) {
         touchState.current.highlightedCell.classList.remove("drag-over");
       }
@@ -528,8 +608,14 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         // A drop over the rack band is just a reorder (already applied live).
         // Otherwise drop onto the nearest board cell (forgiving of a near miss).
         const lastTouch = e.changedTouches[0];
-        const overRack = rackReorderTarget(lastTouch.clientX, lastTouch.clientY) != null;
-        const cell = overRack ? null : cellAtPoint(lastTouch.clientX, lastTouch.clientY);
+        const overRack =
+          rackReorderTarget(
+            lastTouch.clientX,
+            lastTouch.clientY,
+            touchState.current.originalId,
+          ) != null;
+        const target = boardDropPoint(lastTouch, touchState.current.boardDropLiftY);
+        const cell = overRack ? null : cellAtPoint(target.x, target.y);
         if (cell) {
           const row = Number(cell.dataset.row);
           const col = Number(cell.dataset.col);
@@ -573,15 +659,31 @@ function Rack({ tiles, selected, mode, exchange, onSelect, onReorder, onPlaceOnB
         draggable=${true}
         onDragStart=${(e) => {
           dragId.current = tile.id;
+          e.currentTarget.classList.add("dragging");
           e.dataTransfer.setData("text/plain", String(tile.id));
           e.dataTransfer.effectAllowed = "move";
         }}
-        onDragOver=${(e) => e.preventDefault()}
+        onDragOver=${(e) => {
+          e.preventDefault();
+          if (dragId.current !== null && dragId.current !== tile.id) {
+            showRackInsertionMarker(tileInsertionTarget(tile.id, e.clientX));
+          }
+        }}
         onDrop=${(e) => {
           e.preventDefault();
           if (dragId.current !== null && dragId.current !== tile.id) {
-            onReorder(dragId.current, tile.id);
+            const target = tileInsertionTarget(tile.id, e.clientX);
+            if (shouldReorderToward(dragId.current, target)) {
+              onReorder(dragId.current, tile.id);
+            }
           }
+          e.currentTarget.classList.remove("dragging");
+          clearRackInsertionMarker();
+          dragId.current = null;
+        }}
+        onDragEnd=${(e) => {
+          e.currentTarget.classList.remove("dragging");
+          clearRackInsertionMarker();
           dragId.current = null;
         }}
         onTouchStart=${(e) => handleTouchStart(e, tile)}
@@ -1082,13 +1184,20 @@ function App({ gameId, initial }) {
   }
 
   function reorderRack(fromId, toId) {
-    const next = order.slice();
-    const from = next.indexOf(fromId);
-    const to = next.indexOf(toId);
-    if (from === -1 || to === -1) return;
-    next.splice(from, 1);
-    next.splice(to, 0, fromId);
-    setRackOrder(next);
+    setRackOrder((current) => {
+      const base =
+        current.length === rackTiles.length
+          ? current
+          : rackTiles.map((_, i) => i);
+      const from = base.indexOf(fromId);
+      const to = base.indexOf(toId);
+      if (from === -1 || to === -1) return current;
+      const next = base.slice();
+      next.splice(from, 1);
+      next.splice(to, 0, fromId);
+      if (next.every((id, i) => id === base[i])) return current;
+      return next;
+    });
   }
 
   function shuffleRack() {

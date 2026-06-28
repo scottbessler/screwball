@@ -8,9 +8,12 @@ use axum::{
 };
 use axum_extra::extract::cookie::Key;
 use cookie::{Cookie as RawCookie, CookieJar};
+use rand::{SeedableRng, rngs::StdRng};
 use screwball::{
     app,
     dict::Dictionary,
+    game::{SeatSpec, new_game},
+    models::{Difficulty, Game, GameStatus, SeatKind},
     store::GameStore,
     users::{User, UserStore},
 };
@@ -23,6 +26,7 @@ use uuid::Uuid;
 struct TestApp {
     router: Router,
     key: Key,
+    store: Arc<GameStore>,
     users: Arc<UserStore>,
 }
 
@@ -41,7 +45,7 @@ async fn test_app() -> TestApp {
     let key = Key::generate();
     let state = app::AppState {
         dict,
-        store,
+        store: store.clone(),
         users: users.clone(),
         webauthn,
         key: key.clone(),
@@ -50,6 +54,7 @@ async fn test_app() -> TestApp {
     TestApp {
         router: app::router(state),
         key,
+        store,
         users,
     }
 }
@@ -88,6 +93,10 @@ impl TestApp {
             .add(RawCookie::new("sid", user.to_string()));
         let value = jar.get("sid").unwrap().value().to_string();
         format!("sid={value}")
+    }
+
+    async fn insert_game(&self, game: Game) {
+        self.store.insert(game).await.unwrap();
     }
 }
 
@@ -171,6 +180,96 @@ async fn home_page_logged_in_shows_new_game() {
     assert!(html.contains("class=\"form new-game-form\""));
     assert!(html.contains("class=\"form-option-row\""));
     assert!(html.contains("role=\"tooltip\""));
+}
+
+#[tokio::test]
+async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
+    let app = test_app().await;
+    let (user, cookie) = app.new_session();
+    let mut rng = StdRng::seed_from_u64(7);
+
+    let mut your_turn = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(user),
+                },
+                name: "Scott".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Bot {
+                    difficulty: Difficulty::Medium,
+                },
+                name: "Medium bot".to_string(),
+            },
+        ],
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+    your_turn.turn = 0;
+
+    let mut waiting_on_bot = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(user),
+                },
+                name: "Scott".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Bot {
+                    difficulty: Difficulty::Hard,
+                },
+                name: "Hard bot".to_string(),
+            },
+        ],
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+    waiting_on_bot.turn = 1;
+
+    let mut finished = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(user),
+                },
+                name: "Scott".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Bot {
+                    difficulty: Difficulty::Chill,
+                },
+                name: "Chill bot".to_string(),
+            },
+        ],
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+    finished.status = GameStatus::Finished;
+
+    app.insert_game(your_turn).await;
+    app.insert_game(waiting_on_bot).await;
+    app.insert_game(finished).await;
+
+    let response = app.router().oneshot(get("/", Some(&cookie))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_string(response).await;
+
+    assert_eq!(html.matches("badge badge-turn\">your turn").count(), 1);
+    assert!(!html.contains(">you</span>"));
+    assert!(html.contains("class=\"game-list-divider\"><span>Finished games</span>"));
+    assert!(html.contains("class=\"game-list-item is-finished\""));
+
+    let divider = html.find("Finished games").unwrap();
+    let finished_game = html.find("Scott vs Chill bot").unwrap();
+    assert!(divider < finished_game);
 }
 
 #[tokio::test]

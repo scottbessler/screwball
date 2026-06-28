@@ -109,11 +109,7 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
     let list = if games.is_empty() {
         "<p class=\"muted\">No games yet. Create one to get started.</p>".to_string()
     } else {
-        let rows: String = games
-            .iter()
-            .map(|game| game_list_item(game, current))
-            .collect();
-        format!("<ul class=\"game-list\">{rows}</ul>")
+        game_list(games, current)
     };
     let greeting = display_name
         .map(|name| format!("Signed in as <strong>{}</strong>", escape(name)))
@@ -232,29 +228,59 @@ fn new_game_form() -> String {
     )
 }
 
+fn game_list(games: &[Game], current: Uuid) -> String {
+    let mut rows = String::new();
+    for game in games
+        .iter()
+        .filter(|game| game.status != GameStatus::Finished)
+    {
+        rows.push_str(&game_list_item(game, current));
+    }
+    if games.iter().any(|game| game.status == GameStatus::Finished) {
+        rows.push_str(r#"<li class="game-list-divider"><span>Finished games</span></li>"#);
+    }
+    for game in games
+        .iter()
+        .filter(|game| game.status == GameStatus::Finished)
+    {
+        rows.push_str(&game_list_item(game, current));
+    }
+    format!("<ul class=\"game-list\">{rows}</ul>")
+}
+
 fn game_list_item(game: &Game, current: Uuid) -> String {
-    let seated = game.seats.iter().any(|seat| match seat.kind {
-        SeatKind::Human { user_id } => user_id == Some(current),
-        SeatKind::Bot { .. } => false,
-    });
     let players: Vec<String> = game.seats.iter().map(|seat| escape(&seat.name)).collect();
     let status = match game.status {
         GameStatus::Lobby => "lobby",
         GameStatus::Active => "active",
         GameStatus::Finished => "finished",
     };
-    let badge = if seated {
-        " <span class=\"badge\">you</span>"
+    let badge = if is_current_turn(game, current) {
+        " <span class=\"badge badge-turn\">your turn</span>"
     } else {
         ""
     };
+    let item_class = if game.status == GameStatus::Finished {
+        "game-list-item is-finished"
+    } else {
+        "game-list-item"
+    };
     format!(
-        r#"<li>
+        r#"<li class="{item_class}">
   <a href="/games/{id}">{players}</a>
-  <span class="muted">{status}</span>{badge}
+  <span class="game-list-status muted">{status}</span>{badge}
 </li>"#,
         id = game.id,
         players = players.join(" vs "),
+    )
+}
+
+fn is_current_turn(game: &Game, current: Uuid) -> bool {
+    if game.status != GameStatus::Active {
+        return false;
+    }
+    game.seats.get(game.turn).is_some_and(
+        |seat| matches!(seat.kind, SeatKind::Human { user_id } if user_id == Some(current)),
     )
 }
 
