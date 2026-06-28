@@ -257,6 +257,15 @@ body {
   padding-top: 0.75rem;
 }
 
+.notification-controls {
+  margin-top: 0.75rem;
+}
+
+.notification-controls .button {
+  margin-top: 0;
+  font-size: 0.85rem;
+}
+
 .other-games h2 {
   font-size: 0.95rem;
   margin: 0 0 0.4rem;

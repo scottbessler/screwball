@@ -14,12 +14,15 @@ use screwball::{
     dict::Dictionary,
     game::{SeatSpec, new_game},
     models::{Difficulty, Game, GameStatus, SeatKind},
+    push::PushService,
     store::GameStore,
     users::{User, UserStore},
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
+
+const TEST_VAPID_PRIVATE_KEY: &str = "GOUXfxqzqhlIXF7mcuoriQnHt7rmodZJQvRK1vD16Bc";
 
 /// A test harness bundling the router with the cookie-signing key, so tests can
 /// mint authenticated `sid` cookies without running a real passkey ceremony.
@@ -31,6 +34,10 @@ struct TestApp {
 }
 
 async fn test_app() -> TestApp {
+    test_app_with_push(PushService::disabled()).await
+}
+
+async fn test_app_with_push(push: PushService) -> TestApp {
     let dict = Arc::new(Dictionary::from_words("CAT\nCATS\nAT\nHE\nHEY\n"));
     let dir = std::env::temp_dir().join(format!(
         "screwball-test-{}",
@@ -45,10 +52,12 @@ async fn test_app() -> TestApp {
     let key = Key::generate();
     let state = app::AppState {
         dict,
+        defs: Arc::new(screwball::define::DefinitionCache::new()),
         store: store.clone(),
         users: users.clone(),
         webauthn,
         key: key.clone(),
+        push,
         passkey_disabled: false,
     };
     TestApp {
@@ -79,6 +88,7 @@ impl TestApp {
             username: username.to_string(),
             display_name: display_name.to_string(),
             credentials: Vec::new(),
+            push_subscriptions: Vec::new(),
             created_at: chrono::Utc::now(),
         };
         let id = user.id;
@@ -166,6 +176,84 @@ async fn home_page_logged_out_shows_signin() {
     assert!(html.contains("Screwball"));
     assert!(html.contains("Sign in with passkey"));
     assert!(html.contains("/public/auth.js"));
+}
+
+#[tokio::test]
+async fn service_worker_serves_push_notification_script() {
+    let app = test_app().await;
+    let response = app.router().oneshot(get("/sw.js", None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(content_type.starts_with("text/javascript"));
+    let js = body_string(response).await;
+    assert!(js.contains("self.addEventListener(\"push\""));
+    assert!(js.contains("showNotification"));
+}
+
+#[tokio::test]
+async fn push_public_key_requires_auth() {
+    let app = test_app().await;
+    let response = app
+        .router()
+        .oneshot(get("/api/push/vapid-public-key", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(content_type.starts_with("application/json"));
+}
+
+#[tokio::test]
+async fn push_subscription_is_persisted_for_user() {
+    let push =
+        PushService::from_private_key(TEST_VAPID_PRIVATE_KEY, "mailto:test@example.com").unwrap();
+    let app = test_app_with_push(push).await;
+    let (user, cookie) = app.register("push-user", "Push User").await;
+
+    let key = app
+        .router()
+        .oneshot(get("/api/push/vapid-public-key", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(key.status(), StatusCode::OK);
+    let key_body: Value = serde_json::from_str(&body_string(key).await).unwrap();
+    assert!(
+        key_body["public_key"]
+            .as_str()
+            .is_some_and(|key| !key.is_empty())
+    );
+
+    let body = json!({
+        "endpoint": "https://push.example.test/subscription/1",
+        "keys": {
+            "p256dh": "public-key",
+            "auth": "auth-secret"
+        }
+    })
+    .to_string();
+    let response = app
+        .router()
+        .oneshot(post_json("/api/push/subscribe", Some(&cookie), body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let user = app.users.get(user).await.unwrap();
+    assert_eq!(user.push_subscriptions.len(), 1);
+    assert_eq!(
+        user.push_subscriptions[0].endpoint,
+        "https://push.example.test/subscription/1"
+    );
 }
 
 #[tokio::test]

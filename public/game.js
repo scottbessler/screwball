@@ -985,17 +985,14 @@ function Scoreboard({ game }) {
   </table>`;
 }
 
-// Look up a word's definition from the free dictionaryapi.dev. Returns the
-// first definition (with part of speech) or null when none is found.
+// Look up a word's definition from our server, which caches results and falls
+// back from dictionaryapi.dev to Wiktionary. Returns { pos, text } or null.
 async function fetchDefinition(word) {
   const res = await fetch(
-    `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`,
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  const meaning = data && data[0] && data[0].meanings && data[0].meanings[0];
-  if (!meaning || !meaning.definitions || !meaning.definitions[0]) return null;
-  return { pos: meaning.partOfSpeech || "", text: meaning.definitions[0].definition };
+    `/api/define/${encodeURIComponent(word.toLowerCase())}`,
+  ).catch(() => null);
+  if (!res || !res.ok) return null;
+  return res.json();
 }
 
 function MoveLog({ game }) {
@@ -1204,9 +1201,66 @@ function OtherGames({ gameId }) {
 
 // -- Browser notifications --------------------------------------------------
 
-function requestNotificationPermission() {
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
+function notificationSupport() {
+  if (
+    !("Notification" in window) ||
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window)
+  ) {
+    return "unsupported";
+  }
+  return Notification.permission;
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) {
+    output[i] = raw.charCodeAt(i);
+  }
+  return output;
+}
+
+let pushSetupPromise = null;
+
+async function ensurePushNotifications({ prompt = false } = {}) {
+  if (notificationSupport() === "unsupported") return "unsupported";
+  let permission = Notification.permission;
+  if (permission === "default" && prompt) {
+    permission = await Notification.requestPermission();
+  }
+  if (permission !== "granted") return permission;
+  if (pushSetupPromise) return pushSetupPromise;
+
+  pushSetupPromise = (async () => {
+    const keyRes = await fetch("/api/push/vapid-public-key");
+    if (!keyRes.ok) return "error";
+    const { public_key: publicKey } = await keyRes.json();
+    if (!publicKey) return "unsupported";
+
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    const save = await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subscription.toJSON()),
+    });
+    return save.ok ? "enabled" : "error";
+  })();
+
+  try {
+    return await pushSetupPromise;
+  } finally {
+    pushSetupPromise = null;
   }
 }
 
@@ -1328,6 +1382,7 @@ function App({ gameId, initial }) {
   const [hintResult, setHintResult] = useState(null);
   const [hintsRemaining, setHintsRemaining] = useState(initial.hints_remaining || 0);
   const [hintBusy, setHintBusy] = useState(false);
+  const [pushStatus, setPushStatus] = useState(() => notificationSupport());
 
   const yourTurn = isYourTurn(game);
   const seated = game.your_seat !== null && game.your_seat !== undefined;
@@ -1345,6 +1400,22 @@ function App({ gameId, initial }) {
     setTurnAffordanceSource("current-game", yourTurn ? 1 : 0);
     return () => setTurnAffordanceSource("current-game", 0);
   }, [yourTurn]);
+
+  useEffect(() => {
+    let active = true;
+    if (notificationSupport() === "granted") {
+      ensurePushNotifications()
+        .then((status) => {
+          if (active) setPushStatus(status);
+        })
+        .catch(() => {
+          if (active) setPushStatus("error");
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setHintsRemaining(game.hints_remaining || 0);
@@ -1685,7 +1756,7 @@ function App({ gameId, initial }) {
     setBusy(true);
     setError(null);
     try {
-      requestNotificationPermission();
+      ensurePushNotifications().catch(() => {});
       const res = await fetch(`/games/${gameId}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1752,7 +1823,30 @@ function App({ gameId, initial }) {
   const controlsDisabled = !yourTurn || busy;
   const finished = game.status === "Finished";
   const recallByRackId = (rackId) => recallTile({ rackId });
-
+  const notificationControl = seated && pushStatus !== "unsupported"
+    ? h("div", { class: "notification-controls" },
+        pushStatus === "enabled"
+          ? html`<span class="muted">Notifications on</span>`
+          : pushStatus === "denied"
+            ? html`<span class="muted">Notifications blocked</span>`
+            : h(
+                "button",
+                {
+                  type: "button",
+                  class: "button ghost",
+                  disabled: pushStatus === "enabling",
+                  onClick: async () => {
+                    setPushStatus("enabling");
+                    try {
+                      setPushStatus(await ensurePushNotifications({ prompt: true }));
+                    } catch {
+                      setPushStatus("error");
+                    }
+                  },
+                },
+                "Enable notifications",
+              ))
+    : null;
   const boardWrap = h("div", { class: "board-wrap" }, [
     html`<${Board}
       game=${game}
@@ -1876,6 +1970,7 @@ function App({ gameId, initial }) {
     <${Scoreboard} game=${game} />
     <p class="muted">Tiles in bag: ${game.bag_count}</p>
     <${MoveLog} game=${game} />
+    ${notificationControl}
     <${OtherGames} gameId=${gameId} />
   </aside>`;
   const layout = h("div", { class: "game-layout" }, [

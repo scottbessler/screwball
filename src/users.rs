@@ -21,7 +21,23 @@ pub struct User {
     pub username: String,
     pub display_name: String,
     pub credentials: Vec<Passkey>,
+    #[serde(default)]
+    pub push_subscriptions: Vec<PushSubscription>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Browser Push API subscription persisted per user. This mirrors the
+/// `PushSubscription.toJSON()` payload used by service workers.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PushSubscription {
+    pub endpoint: String,
+    pub keys: PushSubscriptionKeys,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PushSubscriptionKeys {
+    pub p256dh: String,
+    pub auth: String,
 }
 
 /// Normalize a login handle so lookups are case- and whitespace-insensitive.
@@ -186,6 +202,7 @@ mod tests {
             username: username.to_string(),
             display_name: username.to_string(),
             credentials: Vec::new(),
+            push_subscriptions: Vec::new(),
             created_at: Utc::now(),
         }
     }

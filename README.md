@@ -52,9 +52,12 @@ party and session signing via environment variables:
 | `RP_ID`          | `localhost`               | WebAuthn relying-party id (the registrable domain).                |
 | `RP_ORIGIN`      | `http://localhost:8080`   | Full origin browsers connect from; must match `RP_ID`.             |
 | `SESSION_SECRET` | stable in debug builds, ephemeral in release builds | ≥64-byte secret signing the session cookie. Unset in local `cargo run` uses a stable dev key; unset in release uses a random key and sessions reset on restart. |
+| `VAPID_PRIVATE_KEY` | stable in debug builds, disabled in release builds | Base64url P-256 private key for Web Push notifications. Unset in local `cargo run` uses a stable dev key; unset in release disables push notifications. |
+| `VAPID_SUBJECT` | `mailto:admin@example.com` | VAPID contact subject sent to push services. |
 
 In production set `RP_ID`/`RP_ORIGIN` to your real domain (e.g. `RP_ID=play.example.com`,
-`RP_ORIGIN=https://play.example.com`) and a stable `SESSION_SECRET`.
+`RP_ORIGIN=https://play.example.com`), a stable `SESSION_SECRET`, and a
+`VAPID_PRIVATE_KEY` for browser push notifications.
 
 ## Checks
 

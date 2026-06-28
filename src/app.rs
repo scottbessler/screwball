@@ -13,7 +13,10 @@ use axum_extra::extract::cookie::Key;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use webauthn_rs::prelude::{Url, Webauthn, WebauthnBuilder};
 
-use crate::{auth, dict::Dictionary, routes, store::GameStore, users::UserStore};
+use crate::{
+    auth, define::DefinitionCache, dict::Dictionary, push::PushService, routes, store::GameStore,
+    users::UserStore,
+};
 
 const LOCAL_DEV_SESSION_SECRET: &str =
     "screwball-local-development-session-secret-v1-keep-browser-sessions-across-restarts";
@@ -21,10 +24,12 @@ const LOCAL_DEV_SESSION_SECRET: &str =
 #[derive(Clone)]
 pub struct AppState {
     pub dict: Arc<Dictionary>,
+    pub defs: Arc<DefinitionCache>,
     pub store: Arc<GameStore>,
     pub users: Arc<UserStore>,
     pub webauthn: Arc<Webauthn>,
     pub key: Key,
+    pub push: PushService,
     /// When set, auth skips the WebAuthn ceremony and trusts the username alone.
     /// Dev-only escape hatch — browsers dislike passkeys on localhost.
     pub passkey_disabled: bool,
@@ -40,6 +45,7 @@ impl FromRef<AppState> for Key {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(routes::index))
+        .route("/sw.js", get(routes::service_worker))
         .route("/healthcheck", get(routes::healthcheck))
         .route("/demo", get(routes::demo))
         .route("/auth/register/begin", post(auth::register_begin))
@@ -49,11 +55,15 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/logout", post(auth::logout))
         .route("/games", post(routes::create_game))
         .route("/api/my-games", get(routes::my_games))
+        .route("/api/push/vapid-public-key", get(routes::push_public_key))
+        .route("/api/push/subscribe", post(routes::push_subscribe))
+        .route("/api/push/unsubscribe", post(routes::push_unsubscribe))
         .route("/games/{id}", get(routes::game_page))
         .route("/games/{id}/join", post(routes::join_game))
         .route("/games/{id}/state", get(routes::game_state))
         .route("/games/{id}/move", post(routes::submit_move))
         .route("/games/{id}/hint", post(routes::hint))
+        .route("/api/define/{word}", get(routes::define))
         .nest_service("/public", ServeDir::new("public"))
         .layer(from_fn(cache_control))
         .layer(TraceLayer::new_for_http())
@@ -88,12 +98,19 @@ pub async fn run() -> Result<()> {
     tracing::info!("loaded dictionary with {} words", dict.word_count());
 
     let data_path = env::var("DATA_PATH").unwrap_or_else(|_| "data".to_string());
+    let defs = Arc::new(DefinitionCache::load(&data_path).await);
     let store = Arc::new(GameStore::load(&data_path).await?);
     let users = Arc::new(UserStore::load(&data_path).await?);
     tracing::info!("loaded {} registered users", users.count().await);
 
     let webauthn = Arc::new(build_webauthn()?);
     let key = load_key();
+    let push = PushService::from_env().context("failed to configure web push")?;
+    if push.is_enabled() {
+        tracing::info!("web push notifications enabled");
+    } else {
+        tracing::warn!("VAPID_PRIVATE_KEY is not set; web push notifications are disabled");
+    }
     let passkey_disabled = env_flag("PASSKEY_DISABLED");
     if passkey_disabled {
         tracing::warn!("PASSKEY_DISABLED set; auth trusts username only (dev mode)");
@@ -101,10 +118,12 @@ pub async fn run() -> Result<()> {
 
     let app = router(AppState {
         dict,
+        defs,
         store,
         users,
         webauthn,
         key,
+        push,
         passkey_disabled,
     });
 
@@ -137,7 +156,12 @@ pub fn build_webauthn() -> Result<Webauthn> {
 fn asset_version() -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    for file in ["public/app.css", "public/game.js", "public/auth.js"] {
+    for file in [
+        "public/app.css",
+        "public/game.js",
+        "public/auth.js",
+        "public/sw.js",
+    ] {
         if let Ok(bytes) = std::fs::read(file) {
             bytes.hash(&mut hasher);
         }

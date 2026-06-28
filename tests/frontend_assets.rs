@@ -1,5 +1,6 @@
 const GAME_JS: &str = include_str!("../public/game.js");
 const APP_CSS: &str = include_str!("../public/app.css");
+const SW_JS: &str = include_str!("../public/sw.js");
 
 #[test]
 fn htm_native_tags_do_not_split_immediately_after_tag_name() {
@@ -104,6 +105,29 @@ fn pwa_turn_affordance_uses_badging_api() {
         GAME_JS.contains("setTurnAffordanceSource(\"current-game\", yourTurn ? 1 : 0)")
             && GAME_JS.contains("setTurnAffordanceSource(\"other-games\", nowTurn.size)"),
         "badge count should include the current game and other games where it is your turn",
+    );
+}
+
+#[test]
+fn web_push_notification_flow_is_wired() {
+    assert!(
+        GAME_JS.contains("navigator.serviceWorker.register(\"/sw.js\")")
+            && GAME_JS.contains("registration.pushManager.subscribe")
+            && GAME_JS.contains("applicationServerKey: urlBase64ToUint8Array(publicKey)")
+            && GAME_JS.contains("fetch(\"/api/push/subscribe\""),
+        "game page should register the service worker and persist push subscriptions",
+    );
+    assert!(
+        GAME_JS.contains("fetch(\"/api/push/vapid-public-key\")")
+            && GAME_JS.contains("Enable notifications"),
+        "game page should expose an opt-in notification flow",
+    );
+    assert!(
+        SW_JS.contains("self.addEventListener(\"push\"")
+            && SW_JS.contains("self.registration.showNotification")
+            && SW_JS.contains("self.addEventListener(\"notificationclick\"")
+            && SW_JS.contains("self.clients.openWindow(url)"),
+        "service worker should show push notifications and open the target game",
     );
 }
 

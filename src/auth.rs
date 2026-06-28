@@ -121,6 +121,7 @@ pub async fn register_begin(
             username,
             display_name,
             credentials: vec![],
+            push_subscriptions: Vec::new(),
             created_at: Utc::now(),
         };
         let display_name = user.display_name.clone();
@@ -165,6 +166,7 @@ pub async fn register_finish(
         username: pending.username,
         display_name: pending.display_name,
         credentials: vec![passkey],
+        push_subscriptions: Vec::new(),
         created_at: Utc::now(),
     };
     let display_name = user.display_name.clone();

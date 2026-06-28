@@ -1,10 +1,10 @@
 use axum::{
     Json,
     extract::{Form, Path, State},
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{Html, IntoResponse, Redirect, Response},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -16,8 +16,11 @@ use crate::{
     models::{Board, Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
     session::{ApiAuthUser, AuthUser, MaybeUser},
+    users::{PushSubscription, PushSubscriptionKeys},
     view::{GameSummary, GameView},
 };
+
+const SERVICE_WORKER_JS: &str = include_str!("../public/sw.js");
 
 /// The viewer id used for redaction; logged-out visitors get the nil UUID,
 /// which never matches a real (v4) seat owner.
@@ -49,6 +52,14 @@ pub async fn index(State(state): State<AppState>, MaybeUser(user): MaybeUser) ->
 
 pub async fn healthcheck() -> &'static str {
     "OK"
+}
+
+pub async fn service_worker() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        SERVICE_WORKER_JS,
+    )
+        .into_response()
 }
 
 pub async fn demo() -> Html<String> {
@@ -204,6 +215,98 @@ pub async fn my_games(
     Json(summaries)
 }
 
+#[derive(Serialize)]
+pub struct PushPublicKey {
+    public_key: Option<String>,
+}
+
+pub async fn push_public_key(
+    State(state): State<AppState>,
+    ApiAuthUser(_user): ApiAuthUser,
+) -> Json<PushPublicKey> {
+    Json(PushPublicKey {
+        public_key: state.push.public_key().map(str::to_string),
+    })
+}
+
+#[derive(Deserialize)]
+pub struct PushSubscriptionRequest {
+    endpoint: String,
+    keys: PushSubscriptionKeys,
+}
+
+pub async fn push_subscribe(
+    State(state): State<AppState>,
+    ApiAuthUser(user): ApiAuthUser,
+    Json(subscription): Json<PushSubscriptionRequest>,
+) -> Response {
+    if state.push.public_key().is_none() {
+        return api_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "web push is not configured",
+        );
+    }
+    if subscription.endpoint.trim().is_empty()
+        || subscription.keys.p256dh.trim().is_empty()
+        || subscription.keys.auth.trim().is_empty()
+    {
+        return api_error(StatusCode::BAD_REQUEST, "invalid push subscription");
+    }
+
+    let result = state
+        .users
+        .update(user, |stored| {
+            let subscription = PushSubscription {
+                endpoint: subscription.endpoint,
+                keys: subscription.keys,
+            };
+            if let Some(existing) = stored
+                .push_subscriptions
+                .iter_mut()
+                .find(|existing| existing.endpoint == subscription.endpoint)
+            {
+                *existing = subscription;
+            } else {
+                stored.push_subscriptions.push(subscription);
+            }
+            if stored.push_subscriptions.len() > 10 {
+                let remove_count = stored.push_subscriptions.len() - 10;
+                stored.push_subscriptions.drain(0..remove_count);
+            }
+        })
+        .await;
+
+    match result {
+        Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(err) => api_error(err.status_code(), err.detail()),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PushUnsubscribeRequest {
+    endpoint: String,
+}
+
+pub async fn push_unsubscribe(
+    State(state): State<AppState>,
+    ApiAuthUser(user): ApiAuthUser,
+    Json(body): Json<PushUnsubscribeRequest>,
+) -> Response {
+    let result = state
+        .users
+        .update(user, |stored| {
+            stored
+                .push_subscriptions
+                .retain(|subscription| subscription.endpoint != body.endpoint);
+        })
+        .await;
+
+    match result {
+        Ok(()) => (StatusCode::OK, Json(json!({ "ok": true }))).into_response(),
+        Err(err) => api_error(err.status_code(), err.detail()),
+    }
+}
+
 pub async fn join_game(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -283,9 +386,43 @@ pub async fn submit_move(
         .await;
 
     match result {
-        Ok(Ok(view)) => (StatusCode::OK, Json(view)).into_response(),
+        Ok(Ok(view)) => {
+            if let Some(game) = state.store.get(id).await {
+                let push = state.push.clone();
+                let users = state.users.clone();
+                // Warm the definition cache for every played word so the first
+                // client lookup is a hit. Cached words are skipped, so scanning
+                // the whole (short) move history each turn is cheap.
+                let defs = state.defs.clone();
+                let words: Vec<String> = game
+                    .moves
+                    .iter()
+                    .flat_map(|mv| mv.words.iter().cloned())
+                    .collect();
+                tokio::spawn(async move {
+                    push.notify_turn(&users, &game).await;
+                });
+                tokio::spawn(async move {
+                    defs.warm(&words).await;
+                });
+            }
+            (StatusCode::OK, Json(view)).into_response()
+        }
         Ok(Err(api)) => move_error(api.status, &api.message),
         Err(err) => err.into_response(),
+    }
+}
+
+/// Look up a word's definition via the server-side cache. Public (definitions
+/// aren't game-private); restricted to short ASCII-alphabetic words so it can't
+/// be used as an open URL proxy. 404 means "no definition found".
+pub async fn define(State(state): State<AppState>, Path(word): Path<String>) -> Response {
+    if word.len() < 2 || word.len() > 30 || !word.chars().all(|c| c.is_ascii_alphabetic()) {
+        return (StatusCode::BAD_REQUEST, "invalid word").into_response();
+    }
+    match state.defs.lookup(&word).await {
+        Some(def) => (StatusCode::OK, Json(def)).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -493,5 +630,9 @@ fn apply_hint(
 }
 
 fn move_error(status: StatusCode, message: &str) -> Response {
+    api_error(status, message)
+}
+
+fn api_error(status: StatusCode, message: &str) -> Response {
     (status, Json(json!({ "error": message }))).into_response()
 }
