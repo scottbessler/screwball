@@ -10,6 +10,9 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY assets ./assets
+# The service worker is embedded at compile time by `include_str!`, so the
+# builder stage needs static assets before `cargo build`.
+COPY public ./public
 
 RUN cargo build --release
 

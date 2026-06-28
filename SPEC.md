@@ -216,3 +216,13 @@ Impossible - top (current hard)
 * [x] the grandpa list should include other very common 2 letter words as well — expanded to AM AN AS AT BE BY DO GO HE HI IF IN IS IT ME MY NO OF OH ON OR SO TO UP US WE
 * [x] in game log, show word definitions (there has to be some free api somewhere maybe https://dictionaryapi.dev) — played words are clickable in the move log; click fetches the definition from dictionaryapi.dev (cached, graceful when none found)
 ```
+
+## §V Verification invariants
+
+V1: Docker builder stage must copy every compile-time embedded static asset
+before `cargo build --release`.
+
+## §B Bug log
+
+B1|2026-06-28|Docker build compiled `routes.rs` with
+`include_str!("../public/sw.js")` before `public/` existed in builder stage|V1
