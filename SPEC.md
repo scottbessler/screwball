@@ -212,7 +212,7 @@ Impossible - top (current hard)
 * [x] formatting of game options is poorly aligned and ugly — checkbox labels now left-aligned rows; hint on its own indented line
 * [x] pwa on ios seems to cache css/js very aggressively — asset URLs now carry a content-hash `?v=`; `/public` is cached immutable, HTML/JSON are no-cache so new asset links are always picked up
 * [x] show how many remaining hints each player has in the score summary if hints are enabled — 💡N badge per human seat in the scoreboard (SSR + client)
-* [ ] consider using https://shopify.github.io/draggable or a similar library to ensure our drag+drop is robust
+* [x] consider using https://shopify.github.io/draggable or a similar library to ensure our drag+drop is robust — decided AGAINST: §3 mandates native pointer events / no dnd library, and we have no runtime bundler (vendored htm-preact). Hardened the native impl instead (forgiving drops, lower reorder band, FLIP, board↔board moves).
 * [x] the grandpa list should include other very common 2 letter words as well — expanded to AM AN AS AT BE BY DO GO HE HI IF IN IS IT ME MY NO OF OH ON OR SO TO UP US WE
-* [ ] in game log, show word definitions (there has to be some free api somewhere maybe https://dictionaryapi.dev)
+* [x] in game log, show word definitions (there has to be some free api somewhere maybe https://dictionaryapi.dev) — played words are clickable in the move log; click fetches the definition from dictionaryapi.dev (cached, graceful when none found)
 ```

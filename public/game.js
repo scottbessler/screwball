@@ -625,7 +625,47 @@ function Scoreboard({ game }) {
   </table>`;
 }
 
+// Look up a word's definition from the free dictionaryapi.dev. Returns the
+// first definition (with part of speech) or null when none is found.
+async function fetchDefinition(word) {
+  const res = await fetch(
+    `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`,
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  const meaning = data && data[0] && data[0].meanings && data[0].meanings[0];
+  if (!meaning || !meaning.definitions || !meaning.definitions[0]) return null;
+  return { pos: meaning.partOfSpeech || "", text: meaning.definitions[0].definition };
+}
+
 function MoveLog({ game }) {
+  // word (uppercase) -> { open, loading, def } cached across re-renders.
+  const [defs, setDefs] = useState({});
+
+  function patch(key, fields) {
+    setDefs((d) => ({ ...d, [key]: { ...d[key], ...fields } }));
+  }
+
+  async function toggleDef(word) {
+    const key = word.toUpperCase();
+    const cur = defs[key];
+    if (cur && cur.open) {
+      patch(key, { open: false });
+      return;
+    }
+    if (cur && "def" in cur) {
+      patch(key, { open: true });
+      return;
+    }
+    patch(key, { open: true, loading: true });
+    try {
+      const def = await fetchDefinition(word);
+      patch(key, { open: true, loading: false, def });
+    } catch {
+      patch(key, { open: true, loading: false, def: null });
+    }
+  }
+
   if (!game.moves.length) {
     return html`<p class="muted">No moves yet.</p>`;
   }
@@ -633,10 +673,35 @@ function MoveLog({ game }) {
   return html`<ul class="move-log">
     ${recent.map((mv, n) => {
       const name = game.seats[mv.seat] ? game.seats[mv.seat].name : "?";
-      let detail;
       if (mv.kind === "play") {
-        detail = `${mv.words.join(", ")} (+${mv.points})`;
-      } else if (mv.kind === "exchange") {
+        return html`<li key=${n}>
+          <strong>${name}</strong>:${" "}
+          ${mv.words.map(
+            (w, i) => html`${i ? ", " : ""}<button
+                type="button"
+                class="word-def"
+                title="Show definition"
+                onClick=${() => toggleDef(w)}
+              >${w}</button>`,
+          )}
+          ${` (+${mv.points})`}
+          ${mv.words
+            .filter((w) => defs[w.toUpperCase()] && defs[w.toUpperCase()].open)
+            .map((w) => {
+              const d = defs[w.toUpperCase()];
+              return html`<div class="word-definition" key=${w}>
+                <strong>${w}</strong>${" "}
+                ${d.loading
+                  ? html`<span class="muted">…</span>`
+                  : d.def
+                    ? html`<span class="muted">(${d.def.pos})</span> ${d.def.text}`
+                    : html`<span class="muted">no definition found</span>`}
+              </div>`;
+            })}
+        </li>`;
+      }
+      let detail;
+      if (mv.kind === "exchange") {
         detail = "exchanged tiles";
       } else if (mv.kind === "adjustment") {
         detail =

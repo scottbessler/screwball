@@ -228,6 +228,24 @@ body {
   border-bottom: 1px dashed var(--line);
 }
 
+/* Clickable played word in the move log (reveals its definition). */
+.word-def {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.word-definition {
+  margin: 0.2rem 0 0.1rem 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .muted {
   color: var(--muted);
 }
