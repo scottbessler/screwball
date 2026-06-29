@@ -85,6 +85,189 @@ fn rack_recall_and_tile_text_styles_are_present() {
         css_rule_contains(".rack-tile", "color: var(--ink);"),
         "rack tile buttons should override mobile default button/link text color",
     );
+    assert!(
+        css_rule_contains(".rack", "width: 100%;")
+            && css_rule_contains(".rack-area", "width: min(100%, 600px);")
+            && APP_CSS.contains(
+                ".rack-area {\n    margin-top: 0.4rem;\n    flex-shrink: 0;\n    width: 100%;"
+            ),
+        "rack width should stay stable regardless of John Mode helper content",
+    );
+}
+
+#[test]
+fn board_labels_are_large_enough_on_mobile() {
+    assert!(
+        css_rule_contains(
+            ".cell .tile-letter",
+            "font-size: clamp(0.85rem, 2.8vw, 1.35rem);"
+        ) && css_rule_contains(
+            ".premium-label",
+            "font-size: clamp(0.55rem, 1.8vw, 0.82rem);"
+        ) && css_rule_contains(".premium-label", "letter-spacing: 0;")
+            && APP_CSS.contains(".premium-label {\n    font-size: clamp(0.62rem, 3vw, 0.78rem);"),
+        "board tile and premium-square labels should be readable on mobile",
+    );
+}
+
+#[test]
+fn john_mode_hint_is_stable_while_crossing_rack_gaps() {
+    assert_eq!(
+        GAME_JS
+            .matches("onMouseLeave=${() => onHover && onHover(null)}")
+            .count(),
+        1,
+        "John Mode hover should clear only when leaving the whole rack, not each tile gap",
+    );
+    assert!(
+        GAME_JS.contains("onFocus=${() => onHover && onHover(tile.is_blank ? null : tile.letter)}")
+            && GAME_JS.contains("onBlur=${() => onHover && onHover(null)}"),
+        "John Mode rack hints should also react to keyboard focus",
+    );
+    for declaration in [
+        "position: absolute;",
+        "top: calc(100% + 0.35rem);",
+        "opacity: 0;",
+        "transform: translateY(-0.3rem);",
+        "padding: 0.45rem 0.55rem 0.65rem;",
+        "overflow: visible;",
+        "visibility: hidden;",
+        "transition: opacity 0.16s ease-in-out, transform 0.16s ease-in-out, visibility 0.16s ease-in-out;",
+    ] {
+        assert!(
+            css_rule_contains(".john-tooltip", declaration),
+            "John Mode hint should be an animated overlay tooltip: {declaration}",
+        );
+    }
+    assert!(
+        css_rule_contains(".john-tooltip.is-visible", "opacity: 1;")
+            && css_rule_contains(".john-tooltip.is-visible", "transform: translateY(0);")
+            && css_rule_contains(".john-tooltip.is-visible", "visibility: visible;")
+            && GAME_JS.contains("class: `john-tooltip${johnLetter ? \" is-visible\" : \"\"}`")
+            && !GAME_JS.contains("rack-info-scroll")
+            && !APP_CSS.contains(".rack-info-scroll")
+            && !css_rule_contains(".john-tooltip", "bottom: calc(100% + 0.35rem);"),
+        "John Mode tooltip should toggle below the rack without reflowing the page or covering the board",
+    );
+    assert!(
+        GAME_JS.contains("class: \"john-tooltip-body\"")
+            && css_rule_contains(".john-tooltip-body", "max-height: 4.1rem;")
+            && css_rule_contains(".john-tooltip-body", "overflow-y: auto;")
+            && !css_rule_contains(".john-tooltip", "overflow-y: auto;"),
+        "John Mode tooltip body should scroll inside the padded shell so bottom padding remains visible",
+    );
+    assert!(
+        css_rule_contains(".john-hint", "flex-wrap: wrap;")
+            && css_rule_contains(".john-hint", "min-height: 1.6em;")
+            && css_rule_contains(".john-hint", "white-space: normal;")
+            && css_rule_contains(".john-hint", "margin: 0;")
+            && !css_rule_contains(".john-hint", "min-height: calc(1.6em * 7);")
+            && !css_rule_contains(".john-hint", "overflow-x: auto;")
+            && !css_rule_contains(".john-hint", "white-space: nowrap;"),
+        "John Mode hint should wrap inside its scroll area without reserving a giant blank region",
+    );
+    assert!(
+        css_rule_contains(".john-hint-label", "flex: 0 0 100%;")
+            && css_rule_contains(".john-word", "flex: 0 0 auto;")
+            && css_rule_contains(".john-word", "letter-spacing: 0;"),
+        "John Mode word chips should not force helper reflow",
+    );
+    assert!(
+        GAME_JS.contains("const GRANDPA_TWO_LETTER_WORDS")
+            && GAME_JS.contains("document.getElementById(\"grandpa-two-letter-words\")")
+            && GAME_JS.contains("(!grandpaMode || GRANDPA_TWO_LETTER_WORDS.has(w))")
+            && GAME_JS.contains("grandpaMode=${game.grandpa_mode}"),
+        "John Mode helper should honor Grandpa Mode's 2-letter allowlist",
+    );
+}
+
+#[test]
+fn mobile_game_controls_are_compact_and_score_is_separate() {
+    assert!(
+        GAME_JS.contains("            Play\n")
+            && GAME_JS.contains("            Swap\n")
+            && !GAME_JS.contains("Play word")
+            && !GAME_JS.contains("Exchange…"),
+        "mobile controls should use compact labels and keep score out of the Play button",
+    );
+    assert!(
+        GAME_JS.contains("header-pending-score")
+            && GAME_JS.contains("pending.textContent = `+${pendingScore}`")
+            && !GAME_JS.contains("class: \"pending-score\""),
+        "pending word score should render in the header, not above the board or inside the Play button",
+    );
+    assert!(
+        GAME_JS.contains("rack-backspace-tile")
+            && GAME_JS.contains("aria-label=\"Backspace\"")
+            && GAME_JS.contains("showBackspace=${mode === \"place\" && pending.length > 0}")
+            && css_rule_contains(".rack-backspace-tile", "display: none;"),
+        "mobile typing should get a rack-shaped backspace control hidden by default",
+    );
+    assert!(
+        css_rule_contains(
+            "@media (max-width: 480px) {\n  .rack-backspace-tile",
+            "display: flex;"
+        ) || APP_CSS.contains("@media (max-width: 480px)")
+            && APP_CSS.contains(".rack-backspace-tile {\n    display: flex;"),
+        "backspace tile should be visible in the mobile layout",
+    );
+    assert!(
+        css_rule_contains(".controls", "display: flex;")
+            && APP_CSS.contains("flex-wrap: nowrap;")
+            && APP_CSS.contains("font-size: 0.78rem;"),
+        "mobile controls should be sized to stay on one line",
+    );
+}
+
+#[test]
+fn header_has_single_home_link_and_mobile_score() {
+    assert!(
+        GAME_JS.contains("function renderHeaderScores(game, pendingScore)")
+            && GAME_JS.contains("header-score")
+            && GAME_JS.contains("turn-dot")
+            && GAME_JS.contains("item.classList.add(\"on-turn\")")
+            && GAME_JS.contains("return name;")
+            && !GAME_JS.contains("if (seat.is_you) return \"you\""),
+        "mobile header should render player names/scores and mark the current turn by treatment",
+    );
+    assert!(
+        !GAME_JS.contains("demo-link"),
+        "demo link should not exist in the client bundle",
+    );
+    assert!(
+        APP_CSS.contains(".nav .brand {\n  justify-self: start;\n  display: inline-flex;\n  width: 1.5rem;\n  height: 1.5rem;")
+            && APP_CSS.contains(".nav .brand {\n    width: 1.15rem;\n    height: 1.15rem;")
+            && APP_CSS.contains("height: calc(100dvh - 41px);"),
+        "header icon should stay compact and preserve the previous mobile header height",
+    );
+    assert!(
+        css_rule_contains(".header-score-name", "overflow: hidden;")
+            && css_rule_contains(".header-score-name", "text-overflow: ellipsis;")
+            && css_rule_contains(".header-score-name", "white-space: nowrap;")
+            && css_rule_contains(".header-score-value", "flex: 0 0 auto;")
+            && css_rule_contains(".header-score", "flex: 0 1 auto;")
+            && css_rule_contains(".header-score", "max-width: min(10rem, 42vw);")
+            && APP_CSS.contains(
+                ".header-score,\n.header-pending-score {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;"
+            )
+            && APP_CSS.contains(".header-score {\n    max-width: min(9rem, 40vw);"),
+        "long player names should ellipsize while centered score pills stay content-sized with max-widths",
+    );
+}
+
+#[test]
+fn jax_mode_unlimited_hint_ui_is_wired() {
+    assert!(
+        GAME_JS.contains("game.hints_unlimited")
+            && GAME_JS.contains("Hint (∞)")
+            && GAME_JS.contains("Jax Mode")
+            && GAME_JS.contains("unlimited hints"),
+        "Jax Mode should surface unlimited hints in the client UI",
+    );
+    assert!(
+        GAME_JS.contains("seat.hints_unlimited") && GAME_JS.contains("title=\"unlimited hints\""),
+        "scoreboard should show unlimited hint affordance for Jax seats",
+    );
 }
 
 #[test]

@@ -264,7 +264,14 @@ pub fn scored_plays(
     dict: &Dictionary,
     rule: WordRule,
 ) -> Vec<(Vec<Placement>, ScoredPlay)> {
-    generate_plays(board, rack, dict)
+    let augmented;
+    let generator_dict = if rule.allows_name_words() {
+        augmented = dict.with_extra_words(crate::models::jax_names());
+        &augmented
+    } else {
+        dict
+    };
+    generate_plays(board, rack, generator_dict)
         .into_iter()
         .filter_map(|placements| {
             validate_play(board, rack, dict, &placements, rule)

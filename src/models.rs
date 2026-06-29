@@ -198,6 +198,10 @@ pub struct Game {
     /// Grandpa Mode: disallow 2-letter words except a few common ones.
     #[serde(default)]
     pub grandpa_mode: bool,
+    /// Jax Mode: allow a broad common-name list as playable words and make
+    /// hints unlimited.
+    #[serde(default)]
+    pub jax_mode: bool,
     #[serde(default)]
     pub hints_allowed: u8,
     #[serde(default)]
@@ -212,6 +216,18 @@ pub const GRANDPA_TWO_LETTER: &[&str] = &[
     "NO", "OF", "OH", "ON", "OR", "SO", "TO", "UP", "US", "WE",
 ];
 
+/// Jax Mode proper-name allowlist. Generated from a machine-readable SSA
+/// national baby-name data mirror, latest available year there: 2020.
+pub const JAX_NAMES_RAW: &str = include_str!("../assets/names/ssa_2020_top500.txt");
+
+pub fn jax_names() -> impl Iterator<Item = &'static str> {
+    JAX_NAMES_RAW.lines().filter(|name| !name.is_empty())
+}
+
+pub fn is_jax_name(word: &str) -> bool {
+    jax_names().any(|name| name == word)
+}
+
 /// Which words a play may form, beyond being in the dictionary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WordRule {
@@ -219,24 +235,38 @@ pub enum WordRule {
     Standard,
     /// Grandpa Mode: 2-letter words only if in [`GRANDPA_TWO_LETTER`].
     Grandpa,
+    /// Jax Mode: dictionary words plus [`JAX_NAMES_RAW`].
+    Jax,
+    /// Grandpa + Jax together.
+    GrandpaJax,
 }
 
 impl WordRule {
     /// Whether `word` (uppercase) is permitted by this rule.
     pub fn allows(&self, word: &str) -> bool {
-        match self {
-            WordRule::Standard => true,
-            WordRule::Grandpa => word.len() != 2 || GRANDPA_TWO_LETTER.contains(&word),
-        }
+        !self.has_grandpa_filter() || word.len() != 2 || GRANDPA_TWO_LETTER.contains(&word)
+    }
+
+    pub fn allows_name_words(&self) -> bool {
+        matches!(self, WordRule::Jax | WordRule::GrandpaJax)
+    }
+
+    pub fn is_known_word(&self, word: &str, dict: &crate::dict::Dictionary) -> bool {
+        dict.contains(word) || (self.allows_name_words() && is_jax_name(word))
+    }
+
+    fn has_grandpa_filter(&self) -> bool {
+        matches!(self, WordRule::Grandpa | WordRule::GrandpaJax)
     }
 }
 
 impl Game {
     pub fn word_rule(&self) -> WordRule {
-        if self.grandpa_mode {
-            WordRule::Grandpa
-        } else {
-            WordRule::Standard
+        match (self.grandpa_mode, self.jax_mode) {
+            (false, false) => WordRule::Standard,
+            (true, false) => WordRule::Grandpa,
+            (false, true) => WordRule::Jax,
+            (true, true) => WordRule::GrandpaJax,
         }
     }
 }

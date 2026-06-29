@@ -89,11 +89,10 @@ fn layout_with_head(title: &str, body: &str, head_extra: &str, body_class: &str)
 
 pub fn nav() -> &'static str {
     r#"<nav class="nav">
-  <a class="brand" href="/">Screwball</a>
-  <div class="nav-links">
-    <a href="/">Games</a>
-    <a class="demo-link" href="/demo">Demo board</a>
-  </div>
+  <a class="brand" href="/" aria-label="Screwball home">
+    <img class="brand-icon" src="/public/favicon.svg" alt="">
+  </a>
+  <div class="nav-links"></div>
 </nav>"#
 }
 
@@ -227,6 +226,15 @@ fn new_game_form() -> String {
         <span id="grandpa-mode-help" class="tooltip-content" role="tooltip">Disallow obscure 2-letter words; keep common ones like at, in, go, to.</span>
       </span>
     </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="jax-mode">
+        <input id="jax-mode" type="checkbox" name="jax_mode" value="on" />
+        <span>Jax Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="jax-mode-help">i
+        <span id="jax-mode-help" class="tooltip-content" role="tooltip">Unlimited hints and common names are valid words.</span>
+      </span>
+    </div>
     <label class="hints-label">Hints per player
       <select name="hints">
         <option value="0" selected>None</option>
@@ -307,6 +315,7 @@ pub fn game_page(
     view: &GameView,
     initial_json: &str,
     two_letter_json: &str,
+    grandpa_two_letter_json: &str,
     other_games: &[GameSummary],
     logged_in: bool,
 ) -> String {
@@ -355,6 +364,7 @@ pub fn game_page(
   <div id="game-island" data-game-id="{id}"></div>
   <script id="game-state" type="application/json">{initial_json}</script>
   <script id="two-letter-words" type="application/json">{two_letter_json}</script>
+  <script id="grandpa-two-letter-words" type="application/json">{grandpa_two_letter_json}</script>
 </section>"#,
         id = view.id,
     );
@@ -459,9 +469,15 @@ fn render_scoreboard(view: &GameView) -> String {
             } else {
                 "human".to_string()
             };
-            let hints = match seat.hints_remaining {
-                Some(n) => format!(r#" <span class="hint-count" title="hints left">💡{n}</span>"#),
-                None => String::new(),
+            let hints = if seat.hints_unlimited {
+                r#" <span class="hint-count" title="unlimited hints">💡∞</span>"#.to_string()
+            } else {
+                match seat.hints_remaining {
+                    Some(n) => {
+                        format!(r#" <span class="hint-count" title="hints left">💡{n}</span>"#)
+                    }
+                    None => String::new(),
+                }
             };
             format!(
                 r#"<tr class="seat{turn}">
@@ -547,29 +563,6 @@ fn render_board_squares(squares: &[SquareView]) -> String {
     format!(r#"<div class="board" role="grid">{cells}</div>"#)
 }
 
-pub fn demo_page(board: &Board) -> String {
-    let squares: Vec<SquareView> = board
-        .squares
-        .iter()
-        .map(|square| SquareView {
-            premium: premium_code(square.premium),
-            letter: square.tile.map(|t| t.letter),
-            is_blank: square.tile.is_some_and(|t| t.is_blank),
-        })
-        .collect();
-    layout(
-        "Demo board — Screwball",
-        &format!(
-            r#"<section class="card">
-  <h1>Demo board</h1>
-  <p>An empty 15&times;15 board with standard premium squares.</p>
-  {}
-</section>"#,
-            render_board_squares(&squares)
-        ),
-    )
-}
-
 fn premium_label(code: &str) -> &'static str {
     match code {
         "dl" => "DL",
@@ -580,7 +573,7 @@ fn premium_label(code: &str) -> &'static str {
     }
 }
 
-/// Still used by tests and as a low-level helper for the demo board.
+/// Low-level board rendering helper used by tests.
 pub fn render_board(board: &Board) -> String {
     let squares: Vec<SquareView> = board
         .squares

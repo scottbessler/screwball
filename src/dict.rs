@@ -17,7 +17,7 @@ fn letter_index(letter: char) -> Option<usize> {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Node {
     is_word: bool,
     /// Child edges sorted by letter index for binary search.
@@ -26,6 +26,7 @@ struct Node {
 
 /// A prefix trie over the word list. Supports O(word) membership and, later,
 /// anchored move generation for the computer opponent.
+#[derive(Clone)]
 pub struct Dictionary {
     nodes: Vec<Node>,
     word_count: usize,
@@ -52,6 +53,16 @@ impl Dictionary {
         };
         for line in contents.lines() {
             let word = line.trim();
+            if word.len() >= 2 {
+                dict.insert(word);
+            }
+        }
+        dict
+    }
+
+    pub fn with_extra_words<'a>(&self, words: impl IntoIterator<Item = &'a str>) -> Self {
+        let mut dict = self.clone();
+        for word in words {
             if word.len() >= 2 {
                 dict.insert(word);
             }

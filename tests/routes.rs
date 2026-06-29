@@ -285,6 +285,9 @@ async fn home_page_logged_in_shows_new_game() {
     assert!(html.contains("class=\"form new-game-form\""));
     assert!(html.contains("class=\"form-option-row\""));
     assert!(html.contains("role=\"tooltip\""));
+    assert!(html.contains("name=\"jax_mode\""));
+    assert!(!html.contains("href=\"/demo\""));
+    assert!(!html.contains("Demo board"));
 }
 
 #[tokio::test]
@@ -310,6 +313,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
         ],
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -332,6 +336,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
         ],
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -352,6 +357,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
                 name: "Chill bot".to_string(),
             },
         ],
+        false,
         false,
         false,
         0,
@@ -378,13 +384,10 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
 }
 
 #[tokio::test]
-async fn demo_page_renders_board() {
+async fn demo_route_is_removed() {
     let app = test_app().await;
     let response = app.router().oneshot(get("/demo", None)).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let html = body_string(response).await;
-    assert!(html.contains("class=\"board\""));
-    assert_eq!(html.matches("class=\"cell").count(), 225);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -454,6 +457,49 @@ async fn create_join_and_play_flow() {
 }
 
 #[tokio::test]
+async fn jax_mode_hints_are_unlimited_even_when_hint_setting_is_none() {
+    let app = test_app().await;
+    let (_user, cookie) = app.new_session();
+
+    let create = app
+        .router()
+        .oneshot(post_form(
+            "/games",
+            Some(&cookie),
+            "seat2=open&jax_mode=on&hints=0",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(create.status(), StatusCode::SEE_OTHER);
+    let location = location_of(&create);
+    let id: Uuid = location.trim_start_matches("/games/").parse().unwrap();
+
+    let state = app
+        .router()
+        .oneshot(get(&format!("{location}/state"), Some(&cookie)))
+        .await
+        .unwrap();
+    let view: Value = serde_json::from_str(&body_string(state).await).unwrap();
+    assert_eq!(view["jax_mode"], json!(true));
+    assert_eq!(view["hints_allowed"], json!(0));
+    assert_eq!(view["hints_unlimited"], json!(true));
+    assert_eq!(view["seats"][0]["hints_unlimited"], json!(true));
+
+    let hint = app
+        .router()
+        .oneshot(post_form(&format!("{location}/hint"), Some(&cookie), ""))
+        .await
+        .unwrap();
+    assert_eq!(hint.status(), StatusCode::OK);
+    let body: Value = serde_json::from_str(&body_string(hint).await).unwrap();
+    assert_eq!(body["unlimited"], json!(true));
+    assert!(body["remaining"].is_null());
+
+    let game = app.store.get(id).await.unwrap();
+    assert_eq!(game.hints_used[0], 0);
+}
+
+#[tokio::test]
 async fn game_page_escapes_script_in_embedded_state() {
     let app = test_app().await;
     // The seat name comes from the account display name, which here contains
@@ -484,6 +530,8 @@ async fn game_page_escapes_script_in_embedded_state() {
         .expect("game-state script closes");
     assert!(!json_text.contains("</script>"));
     assert!(json_text.contains("<\\/script>"));
+    assert!(html.contains(r#"<script id="grandpa-two-letter-words" type="application/json">"#));
+    assert!(html.contains(r#""AM""#));
 }
 
 #[tokio::test]

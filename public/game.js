@@ -31,6 +31,15 @@ const TWO_LETTER_WORDS = (() => {
   }
 })();
 
+const GRANDPA_TWO_LETTER_WORDS = (() => {
+  const el = document.getElementById("grandpa-two-letter-words");
+  try {
+    return new Set(el ? JSON.parse(el.textContent) : []);
+  } catch {
+    return new Set();
+  }
+})();
+
 function pointsFor(letter, isBlank) {
   return isBlank ? 0 : POINTS[letter] || 0;
 }
@@ -541,6 +550,8 @@ function Rack({
   onReorder,
   onPlaceOnBoard,
   onRecallPending,
+  onBackspace,
+  showBackspace,
   onHover,
 }) {
   const dragId = useRef(null);
@@ -888,7 +899,8 @@ function Rack({
   return html`<div class="rack" ref=${rackRef}
     onDragOver=${handleRackDragOver}
     onDragLeave=${handleRackDragLeave}
-    onDrop=${handleRackDrop}>
+    onDrop=${handleRackDrop}
+    onMouseLeave=${() => onHover && onHover(null)}>
     ${tiles.map((tile) => {
       // Placed tile: hold its slot with an inert placeholder so nothing reflows.
       if (tile.used) {
@@ -947,12 +959,22 @@ function Rack({
         onTouchStart=${(e) => handleTouchStart(e, tile)}
         onClick=${() => onSelect(tile)}
         onMouseEnter=${() => onHover && onHover(tile.is_blank ? null : tile.letter)}
-        onMouseLeave=${() => onHover && onHover(null)}
+        onFocus=${() => onHover && onHover(tile.is_blank ? null : tile.letter)}
+        onBlur=${() => onHover && onHover(null)}
       >
         <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
         <span class="tile-points">${pointsFor(tile.letter, tile.is_blank)}</span>
       </button>`;
     })}
+    ${showBackspace
+      ? html`<button type="button"
+          class="rack-tile rack-backspace-tile"
+          aria-label="Backspace"
+          onClick=${onBackspace}
+        >
+          <span class="tile-letter">←</span>
+        </button>`
+      : null}
   </div>`;
 }
 
@@ -967,7 +989,9 @@ function Scoreboard({ game }) {
           <td>
             ${seat.name}
             ${seat.is_you ? html`<span class="badge">you</span>` : null}
-            ${seat.hints_remaining != null
+            ${seat.hints_unlimited
+              ? html`<span class="hint-count" title="unlimited hints">💡∞</span>`
+              : seat.hints_remaining != null
               ? html`<span class="hint-count" title="hints left">💡${seat.hints_remaining}</span>`
               : null}
           </td>
@@ -1349,13 +1373,59 @@ function statusText(game) {
   return seat ? `${seat.name}'s turn` : "In progress";
 }
 
+function shortScoreName(seat) {
+  const name = (seat.name || "").trim();
+  if (!name) return "open";
+  return name;
+}
+
+function renderHeaderScores(game, pendingScore) {
+  const nav = document.querySelector(".nav");
+  if (!nav) return;
+  let strip = nav.querySelector(".header-scores");
+  if (!strip) {
+    strip = document.createElement("div");
+    strip.className = "header-scores";
+    nav.querySelector(".nav-links").before(strip);
+  }
+  strip.replaceChildren();
+  for (const seat of game.seats) {
+    const item = document.createElement("span");
+    item.className = "header-score";
+    item.title = `${seat.name}: ${seat.score}`;
+    if (game.status === "Active" && seat.index === game.turn) {
+      item.classList.add("on-turn");
+      const dot = document.createElement("span");
+      dot.className = "turn-dot";
+      item.append(dot);
+    }
+    const name = document.createElement("span");
+    name.className = "header-score-name";
+    name.textContent = shortScoreName(seat);
+    const value = document.createElement("span");
+    value.className = "header-score-value";
+    value.textContent = String(seat.score);
+    item.append(name, value);
+    strip.append(item);
+  }
+  if (pendingScore != null) {
+    const pending = document.createElement("span");
+    pending.className = "header-pending-score";
+    pending.title = "score for placed tiles";
+    pending.textContent = `+${pendingScore}`;
+    strip.append(pending);
+  }
+}
+
 // John Mode helper: valid 2-letter words containing the active rack letter.
-function JohnHint({ letter }) {
+function JohnHint({ letter, grandpaMode }) {
   if (!letter) {
-    return html`<p class="john-hint muted">Hover or select a rack tile to see its 2-letter words.</p>`;
+    return null;
   }
   const up = letter.toUpperCase();
-  const words = TWO_LETTER_WORDS.filter((w) => w.includes(up));
+  const words = TWO_LETTER_WORDS.filter(
+    (w) => w.includes(up) && (!grandpaMode || GRANDPA_TWO_LETTER_WORDS.has(w)),
+  );
   return html`<p class="john-hint">
     <span class="john-hint-label">2-letter words with ${up}:</span>${" "}
     ${words.length
@@ -1380,13 +1450,16 @@ function App({ gameId, initial }) {
   );
 
   const [hintResult, setHintResult] = useState(null);
-  const [hintsRemaining, setHintsRemaining] = useState(initial.hints_remaining || 0);
+  const [hintsRemaining, setHintsRemaining] = useState(
+    initial.hints_unlimited ? null : initial.hints_remaining || 0,
+  );
   const [hintBusy, setHintBusy] = useState(false);
   const [pushStatus, setPushStatus] = useState(() => notificationSupport());
 
   const yourTurn = isYourTurn(game);
   const seated = game.your_seat !== null && game.your_seat !== undefined;
   const hasOpenSeat = game.seats.some((s) => s.open);
+  const pendingScore = pending.length ? previewScore(game, pending) : null;
 
   const lastPlaySet = useMemo(() => {
     const s = new Set();
@@ -1418,9 +1491,9 @@ function App({ gameId, initial }) {
   }, []);
 
   useEffect(() => {
-    setHintsRemaining(game.hints_remaining || 0);
+    setHintsRemaining(game.hints_unlimited ? null : game.hints_remaining || 0);
     setHintResult(null);
-  }, [game.turn]);
+  }, [game.turn, game.hints_remaining, game.hints_unlimited]);
 
   // Poll for opponent/bot moves while we are waiting.
   useEffect(() => {
@@ -1452,21 +1525,12 @@ function App({ gameId, initial }) {
     setRackOrder((game.your_rack || []).map((_, i) => i));
   }, [sig]);
 
-  // Inject turn indicator into nav bar on mobile
-  const status = statusText(game);
+  // Inject live scores into the nav; the server-rendered nav is outside the
+  // Preact island.
   useEffect(() => {
-    if (window.innerWidth > 480) return;
-    const nav = document.querySelector(".nav");
-    if (!nav) return;
-    let el = nav.querySelector(".turn-indicator");
-    if (!el) {
-      el = document.createElement("span");
-      el.className = "turn-indicator";
-      nav.querySelector(".nav-links").before(el);
-    }
-    el.textContent = status;
-    return () => el.remove();
-  }, [status]);
+    renderHeaderScores(game, pendingScore);
+    return () => document.querySelector(".header-scores")?.remove();
+  }, [game, pendingScore]);
 
   const usedRackIds = new Set(pending.map((p) => p.rackId));
   const rackTiles = game.your_rack || [];
@@ -1739,7 +1803,7 @@ function App({ gameId, initial }) {
         setError(data.error || "Could not get hint.");
         return;
       }
-      setHintsRemaining(data.remaining);
+      setHintsRemaining(data.unlimited ? null : data.remaining);
       if (data.words && data.words.length) {
         setHintResult(`Try: ${data.words.join(", ")} (${data.score} pts)`);
       } else {
@@ -1823,6 +1887,11 @@ function App({ gameId, initial }) {
   const controlsDisabled = !yourTurn || busy;
   const finished = game.status === "Finished";
   const recallByRackId = (rackId) => recallTile({ rackId });
+  const hintsUnlimited = game.hints_unlimited;
+  const johnLetter = hoverLetter ||
+    (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
+      ? rackTiles[selected].letter
+      : null);
   const notificationControl = seated && pushStatus !== "unsupported"
     ? h("div", { class: "notification-controls" },
         pushStatus === "enabled"
@@ -1870,7 +1939,7 @@ function App({ gameId, initial }) {
             disabled=${controlsDisabled}
             onClick=${submitPlay}
           >
-            Play word${pending.length ? ` (${previewScore(game, pending)})` : ""}
+            Play
           </button>
           <button
             type="button"
@@ -1900,7 +1969,7 @@ function App({ gameId, initial }) {
               setMode("exchange");
             }}
           >
-            Exchange…
+            Swap
           </button>
           <button
             type="button"
@@ -1937,27 +2006,34 @@ function App({ gameId, initial }) {
           onReorder=${reorderRack}
           onPlaceOnBoard=${placeTileOnBoard}
           onRecallPending=${recallByRackId}
+          onBackspace=${backspace}
+          showBackspace=${mode === "place" && pending.length > 0}
           onHover=${game.john_mode ? setHoverLetter : null}
         />`,
-        game.john_mode
-          ? html`<${JohnHint}
-              letter=${hoverLetter ||
-              (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
-                ? rackTiles[selected].letter
-                : null)}
-            />`
-          : null,
         error ? html`<p class="move-error">${error}</p>` : null,
         controls,
-        game.hints_allowed > 0
+        game.hints_allowed > 0 || hintsUnlimited
           ? html`<div>
               <button type="button" class="hint-btn"
-                disabled=${!yourTurn || hintBusy || hintsRemaining <= 0}
+                disabled=${!yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0)}
                 onClick=${requestHint}>
-                Hint (${hintsRemaining} left)
+                ${hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining} left)`}
               </button>
               ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
             </div>`
+          : null,
+        game.john_mode
+          ? h(
+              "div",
+              {
+                class: `john-tooltip${johnLetter ? " is-visible" : ""}`,
+                role: "tooltip",
+              },
+              html`<${JohnHint}
+                letter=${johnLetter}
+                grandpaMode=${game.grandpa_mode}
+              />`,
+            )
           : null,
       ])
     : null;
@@ -1965,6 +2041,8 @@ function App({ gameId, initial }) {
     <div class="game-badges">
       ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
       ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
+      ${game.jax_mode ? html`<span class="game-badge">Jax Mode</span>` : null}
+      ${hintsUnlimited ? html`<span class="game-badge">unlimited hints</span>` : null}
       ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
     <${Scoreboard} game=${game} />

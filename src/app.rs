@@ -47,7 +47,6 @@ pub fn router(state: AppState) -> Router {
         .route("/", get(routes::index))
         .route("/sw.js", get(routes::service_worker))
         .route("/healthcheck", get(routes::healthcheck))
-        .route("/demo", get(routes::demo))
         .route("/auth/register/begin", post(auth::register_begin))
         .route("/auth/register/finish", post(auth::register_finish))
         .route("/auth/login/begin", post(auth::login_begin))

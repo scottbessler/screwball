@@ -22,7 +22,9 @@ pub struct GameView {
     pub winners: Vec<usize>,
     pub john_mode: bool,
     pub grandpa_mode: bool,
+    pub jax_mode: bool,
     pub hints_allowed: u8,
+    pub hints_unlimited: bool,
     pub hints_remaining: u8,
     pub last_play: Vec<PositionView>,
 }
@@ -47,6 +49,7 @@ pub struct SeatView {
     /// Hints left for this (human) seat when hints are enabled; `None` for bots,
     /// open seats, or games without hints.
     pub hints_remaining: Option<u8>,
+    pub hints_unlimited: bool,
 }
 
 #[derive(Serialize)]
@@ -101,18 +104,13 @@ impl GameView {
                 on_turn: game.status == GameStatus::Active && game.turn == index,
                 is_you: Some(index) == your_seat,
                 open: matches!(seat.kind, SeatKind::Human { user_id: None }),
-                hints_remaining: match seat.kind {
-                    SeatKind::Human { user_id: Some(_) } if game.hints_allowed > 0 => Some(
-                        game.hints_allowed
-                            .saturating_sub(game.hints_used.get(index).copied().unwrap_or(0)),
-                    ),
-                    _ => None,
-                },
+                hints_remaining: seat_hints_remaining(game, seat, index),
+                hints_unlimited: seat_hints_unlimited(game, seat),
             })
             .collect();
 
         let hints_remaining = match your_seat {
-            Some(i) if game.hints_allowed > 0 => game
+            Some(i) if !game.jax_mode && game.hints_allowed > 0 => game
                 .hints_allowed
                 .saturating_sub(game.hints_used.get(i).copied().unwrap_or(0)),
             _ => 0,
@@ -133,11 +131,27 @@ impl GameView {
             winners: winners(game),
             john_mode: game.john_mode,
             grandpa_mode: game.grandpa_mode,
+            jax_mode: game.jax_mode,
             hints_allowed: game.hints_allowed,
+            hints_unlimited: game.jax_mode,
             hints_remaining,
             last_play,
         }
     }
+}
+
+fn seat_hints_remaining(game: &Game, seat: &Seat, index: usize) -> Option<u8> {
+    match seat.kind {
+        SeatKind::Human { user_id: Some(_) } if !game.jax_mode && game.hints_allowed > 0 => Some(
+            game.hints_allowed
+                .saturating_sub(game.hints_used.get(index).copied().unwrap_or(0)),
+        ),
+        _ => None,
+    }
+}
+
+fn seat_hints_unlimited(game: &Game, seat: &Seat) -> bool {
+    game.jax_mode && matches!(seat.kind, SeatKind::Human { user_id: Some(_) })
 }
 
 /// A compact summary of a game the viewer is seated in, for the "your other

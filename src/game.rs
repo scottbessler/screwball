@@ -94,6 +94,7 @@ pub fn new_game(
     seats: Vec<SeatSpec>,
     john_mode: bool,
     grandpa_mode: bool,
+    jax_mode: bool,
     hints_allowed: u8,
     rng: &mut impl Rng,
 ) -> Game {
@@ -125,6 +126,7 @@ pub fn new_game(
         updated_at: Utc::now(),
         john_mode,
         grandpa_mode,
+        jax_mode,
         hints_allowed,
         hints_used: vec![0; seat_count],
     }
@@ -240,7 +242,7 @@ pub fn validate_play(
         let word = word_string(&scratch, cells);
         // A word must be in the dictionary first; only then does the rule apply,
         // so we never report a non-word as merely "disallowed".
-        if !dict.contains(&word) {
+        if !rule.is_known_word(&word, dict) {
             invalid.push(word.clone());
             continue;
         }

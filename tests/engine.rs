@@ -6,7 +6,8 @@ use uuid::Uuid;
 use screwball::dict::Dictionary;
 use screwball::game::{MoveError, SeatSpec, apply_move, new_game, validate_play};
 use screwball::models::{
-    Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule,
+    Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule, is_jax_name,
+    jax_names,
 };
 
 fn dict() -> Dictionary {
@@ -76,6 +77,50 @@ fn grandpa_mode_allows_common_two_letter_words() {
     // "TO" is common enough to survive Grandpa Mode.
     validate_play(&board, &rack, &dict(), &placements, WordRule::Grandpa)
         .expect("grandpa allows TO");
+}
+
+#[test]
+fn jax_mode_allows_top_names_not_in_dictionary() {
+    assert_eq!(jax_names().count(), 500);
+    assert!(is_jax_name("JAX"));
+
+    let names_without_olivia = Dictionary::from_words("AT\nTO\nCAT\n");
+    let board = Board::new();
+    let rack = vec![
+        letter('O'),
+        letter('L'),
+        letter('I'),
+        letter('V'),
+        letter('I'),
+        letter('A'),
+    ];
+    let placements = vec![
+        place(7, 4, 'O'),
+        place(7, 5, 'L'),
+        place(7, 6, 'I'),
+        place(7, 7, 'V'),
+        place(7, 8, 'I'),
+        place(7, 9, 'A'),
+    ];
+
+    let err = validate_play(
+        &board,
+        &rack,
+        &names_without_olivia,
+        &placements,
+        WordRule::Standard,
+    )
+    .unwrap_err();
+    assert_eq!(err, MoveError::InvalidWords(vec!["OLIVIA".to_string()]));
+
+    validate_play(
+        &board,
+        &rack,
+        &names_without_olivia,
+        &placements,
+        WordRule::Jax,
+    )
+    .expect("Jax Mode allows common names");
 }
 
 #[test]
@@ -250,7 +295,7 @@ fn new_game_deals_full_racks() {
             name: "Bot".into(),
         },
     ];
-    let game = new_game(specs, false, false, 0, &mut rng);
+    let game = new_game(specs, false, false, false, 0, &mut rng);
     assert_eq!(game.seats.len(), 2);
     assert_eq!(game.seats[0].rack.len(), 7);
     assert_eq!(game.seats[1].rack.len(), 7);
@@ -285,6 +330,7 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
         updated_at: Utc::now(),
         john_mode: false,
         grandpa_mode: false,
+        jax_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; seat_count],
     }

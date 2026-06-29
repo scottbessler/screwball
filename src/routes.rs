@@ -13,7 +13,7 @@ use crate::{
     bot,
     error::AppError,
     game::{self, MoveError, SeatSpec},
-    models::{Board, Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
+    models::{Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
     session::{ApiAuthUser, AuthUser, MaybeUser},
     users::{PushSubscription, PushSubscriptionKeys},
@@ -62,10 +62,6 @@ pub async fn service_worker() -> Response {
         .into_response()
 }
 
-pub async fn demo() -> Html<String> {
-    Html(render::demo_page(&Board::new()))
-}
-
 #[derive(Deserialize)]
 pub struct CreateForm {
     seat2: Option<String>,
@@ -75,6 +71,8 @@ pub struct CreateForm {
     john_mode: Option<String>,
     #[serde(default)]
     grandpa_mode: Option<String>,
+    #[serde(default)]
+    jax_mode: Option<String>,
     #[serde(default)]
     hints: Option<u8>,
 }
@@ -111,11 +109,13 @@ pub async fn create_game(
 
     let john_mode = form.john_mode.is_some();
     let grandpa_mode = form.grandpa_mode.is_some();
+    let jax_mode = form.jax_mode.is_some();
     let hints_allowed = form.hints.unwrap_or(0).min(3);
     let game = game::new_game(
         specs,
         john_mode,
         grandpa_mode,
+        jax_mode,
         hints_allowed,
         &mut rand::thread_rng(),
     );
@@ -165,6 +165,8 @@ pub async fn game_page(
     let initial = serde_json::to_string(&view).map_err(AppError::internal)?;
     let two_letter =
         serde_json::to_string(&state.dict.two_letter_words()).map_err(AppError::internal)?;
+    let grandpa_two_letter =
+        serde_json::to_string(crate::models::GRANDPA_TWO_LETTER).map_err(AppError::internal)?;
     let other_games = match user {
         Some(user) => my_game_summaries(&state, user, Some(id)).await,
         None => Vec::new(),
@@ -173,6 +175,7 @@ pub async fn game_page(
         &view,
         &initial,
         &two_letter,
+        &grandpa_two_letter,
         &other_games,
         user.is_some(),
     )))
@@ -583,7 +586,9 @@ fn apply_hint(
         });
     }
 
-    if game.hints_allowed == 0 {
+    let unlimited = game.jax_mode;
+
+    if !unlimited && game.hints_allowed == 0 {
         return Err(ApiMoveError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             message: "hints are not enabled for this game".into(),
@@ -591,7 +596,7 @@ fn apply_hint(
     }
 
     let used = game.hints_used.get(seat_index).copied().unwrap_or(0);
-    if used >= game.hints_allowed {
+    if !unlimited && used >= game.hints_allowed {
         return Err(ApiMoveError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             message: "no hints remaining".into(),
@@ -608,22 +613,28 @@ fn apply_hint(
 
     match best {
         Some((_, scored)) => {
-            if game.hints_used.len() <= seat_index {
-                game.hints_used.resize(game.seats.len(), 0);
-            }
-            game.hints_used[seat_index] += 1;
-            let remaining = game.hints_allowed - game.hints_used[seat_index];
+            let remaining = if unlimited {
+                None
+            } else {
+                if game.hints_used.len() <= seat_index {
+                    game.hints_used.resize(game.seats.len(), 0);
+                }
+                game.hints_used[seat_index] += 1;
+                Some(game.hints_allowed - game.hints_used[seat_index])
+            };
             let words: Vec<&str> = scored.words.iter().map(|w| w.word.as_str()).collect();
             Ok(json!({
                 "words": words,
                 "score": scored.points,
-                "remaining": remaining
+                "remaining": remaining,
+                "unlimited": unlimited
             }))
         }
         None => Ok(json!({
             "words": [],
             "score": 0,
-            "remaining": game.hints_allowed - used,
+            "remaining": if unlimited { None } else { Some(game.hints_allowed - used) },
+            "unlimited": unlimited,
             "message": "no plays available"
         })),
     }
