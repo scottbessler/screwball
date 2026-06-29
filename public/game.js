@@ -133,6 +133,8 @@ function previewScore(game, pending) {
     const x = run([p.row, p.col], cross);
     if (x.length >= 2) words.push(x);
   }
+  // No ≥2-letter word formed (e.g. a lone tile) — not a scorable play.
+  if (!words.length) return null;
   let total = 0;
   for (const cells of words) {
     let ws = 0, wm = 1;
