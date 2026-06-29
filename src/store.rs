@@ -1,18 +1,33 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::Utc;
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
 use crate::{error::AppError, models::Game};
 
+/// One game plus the lock that serializes writes to it. The game is held behind
+/// an `Arc` so reads clone a pointer (and the registry lock is released
+/// immediately) instead of deep-cloning under contention.
+struct Entry {
+    game: Arc<Game>,
+    write_lock: Arc<AsyncMutex<()>>,
+}
+
 /// In-memory registry of games backed by atomic per-game JSON files on disk.
+///
+/// The registry map is guarded by a short-lived std mutex held only long enough
+/// to clone an `Arc` — never across `.await`, so polling reads (`get`/`list`)
+/// never block on disk I/O or on a bot turn. Writes to a *single* game serialize
+/// on that game's own `write_lock`; different games (and all reads) proceed
+/// concurrently.
 pub struct GameStore {
-    games: Mutex<HashMap<Uuid, Game>>,
+    games: Mutex<HashMap<Uuid, Entry>>,
     dir: PathBuf,
 }
 
@@ -37,7 +52,7 @@ impl GameStore {
             match tokio::fs::read_to_string(&path).await {
                 Ok(text) => match serde_json::from_str::<Game>(&text) {
                     Ok(game) => {
-                        games.insert(game.id, game);
+                        games.insert(game.id, Entry::new(game));
                     }
                     Err(err) => {
                         tracing::warn!(path = %path.display(), error = %err, "skipping invalid game file")
@@ -56,42 +71,68 @@ impl GameStore {
     }
 
     pub async fn insert(&self, game: Game) -> Result<(), AppError> {
+        let id = game.id;
         self.persist(&game).await?;
-        self.games.lock().await.insert(game.id, game);
+        self.games.lock().unwrap().insert(id, Entry::new(game));
         Ok(())
     }
 
     pub async fn get(&self, id: Uuid) -> Option<Game> {
-        self.games.lock().await.get(&id).cloned()
+        self.games
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|entry| (*entry.game).clone())
     }
 
     /// Games sorted newest-first, for listing.
     pub async fn list(&self) -> Vec<Game> {
-        let mut games: Vec<Game> = self.games.lock().await.values().cloned().collect();
+        let mut games: Vec<Game> = {
+            let map = self.games.lock().unwrap();
+            map.values().map(|entry| (*entry.game).clone()).collect()
+        };
         games.sort_by_key(|game| std::cmp::Reverse(game.created_at));
         games
     }
 
-    /// Mutate a game under the registry lock, persisting the result before it
-    /// becomes visible in memory. The closure runs on a clone, which is written
-    /// to disk while the lock is held; only on a successful write is the new
-    /// state committed back to the map. A failed write therefore leaves both
-    /// disk and memory on the previous state (no silent divergence), and the
-    /// serialized persist/commit ordering prevents concurrent updates from
-    /// racing. The closure is synchronous, so move application and bot turns run
-    /// atomically with respect to other requests for the same game.
+    /// Mutate a game, persisting the result before it becomes visible in memory.
+    ///
+    /// The closure (which may run a bot turn) and the disk write happen while
+    /// holding only this game's `write_lock` — not the registry lock — so other
+    /// games and all reads are unaffected. The closure runs on a fresh clone and
+    /// the new state is committed back only after a successful write, so a failed
+    /// write leaves disk and memory on the previous state (no divergence), and
+    /// concurrent writes to the same game serialize.
     pub async fn update<R>(&self, id: Uuid, f: impl FnOnce(&mut Game) -> R) -> Result<R, AppError> {
-        let mut guard = self.games.lock().await;
-        let original = guard
+        let write_lock = self
+            .games
+            .lock()
+            .unwrap()
             .get(&id)
+            .map(|entry| entry.write_lock.clone())
             .ok_or_else(|| AppError::not_found("game not found"))?;
-        let mut working = original.clone();
+        // Serialize writes to this game; held across the closure and the persist.
+        let _guard = write_lock.lock().await;
+
+        // Read the current state only after taking the write lock, so we never
+        // build on a snapshot another writer is about to replace.
+        let current = self
+            .games
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|entry| entry.game.clone())
+            .ok_or_else(|| AppError::not_found("game not found"))?;
+
+        let mut working = (*current).clone();
         let outcome = f(&mut working);
-        if working != *original {
+        if working != *current {
             working.updated_at = Utc::now();
         }
         self.persist(&working).await?;
-        guard.insert(id, working);
+        if let Some(entry) = self.games.lock().unwrap().get_mut(&id) {
+            entry.game = Arc::new(working);
+        }
         Ok(outcome)
     }
 
@@ -106,6 +147,15 @@ impl GameStore {
             .await
             .map_err(AppError::internal)?;
         Ok(())
+    }
+}
+
+impl Entry {
+    fn new(game: Game) -> Self {
+        Self {
+            game: Arc::new(game),
+            write_lock: Arc::new(AsyncMutex::new(())),
+        }
     }
 }
 
