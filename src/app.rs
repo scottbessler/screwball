@@ -3,9 +3,9 @@ use std::{env, net::SocketAddr, sync::Arc, time::Instant};
 use anyhow::{Context, Result};
 use axum::{
     Router,
-    extract::{FromRef, Request},
+    extract::{FromRef, FromRequestParts, Request, State},
     http::{HeaderValue, header::CACHE_CONTROL},
-    middleware::{Next, from_fn},
+    middleware::{Next, from_fn, from_fn_with_state},
     response::Response,
     routing::{get, post},
 };
@@ -14,8 +14,8 @@ use tower_http::{services::ServeDir, trace::TraceLayer};
 use webauthn_rs::prelude::{Url, Webauthn, WebauthnBuilder};
 
 use crate::{
-    auth, define::DefinitionCache, dict::Dictionary, push::PushService, routes, store::GameStore,
-    users::UserStore,
+    auth, define::DefinitionCache, dict::Dictionary, push::PushService, routes, session::MaybeUser,
+    store::GameStore, users::UserStore,
 };
 
 const LOCAL_DEV_SESSION_SECRET: &str =
@@ -70,28 +70,50 @@ pub fn router(state: AppState) -> Router {
         .route("/api/define/{word}", get(routes::define))
         .nest_service("/public", ServeDir::new("public"))
         .layer(from_fn(cache_control))
-        .layer(from_fn(log_request))
+        .layer(from_fn_with_state(state.clone(), log_request))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
-/// Log every request's method, path, status, and wall-clock duration so prod
-/// latency spikes are visible. Static assets and the health check are skipped to
-/// keep the log readable; anything slow is bumped to a warning.
-async fn log_request(request: Request, next: Next) -> Response {
+/// Log every request's method, path, status, signed-in username, and wall-clock
+/// duration so prod latency spikes are visible. Static assets and the health
+/// check are skipped to keep the log readable; anything slow is bumped to a
+/// warning. Guests log as `-`.
+async fn log_request(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_string();
+    if path.starts_with("/public/") || path == "/healthcheck" {
+        return next.run(request).await;
+    }
+
+    // Resolve the username from the signed session cookie before the body is
+    // consumed; falls back to the user id, then `-` for guests.
+    let (mut parts, body) = request.into_parts();
+    let user_id = MaybeUser::from_request_parts(&mut parts, &state)
+        .await
+        .map(|m| m.0)
+        .unwrap_or(None);
+    let request = Request::from_parts(parts, body);
+
     let start = Instant::now();
     let response = next.run(request).await;
     let elapsed_ms = start.elapsed().as_millis();
     let status = response.status().as_u16();
-    if path.starts_with("/public/") || path == "/healthcheck" {
-        return response;
-    }
+
+    let user = match user_id {
+        Some(id) => state
+            .users
+            .get(id)
+            .await
+            .map(|u| u.username)
+            .unwrap_or_else(|| id.to_string()),
+        None => "-".to_string(),
+    };
+
     if elapsed_ms >= 500 {
-        tracing::warn!(%method, path, status, elapsed_ms, "slow request");
+        tracing::warn!(%method, path, status, user, elapsed_ms, "slow request");
     } else {
-        tracing::info!(%method, path, status, elapsed_ms, "request");
+        tracing::info!(%method, path, status, user, elapsed_ms, "request");
     }
     response
 }
