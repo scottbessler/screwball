@@ -254,6 +254,16 @@ async fn push_subscription_is_persisted_for_user() {
         user.push_subscriptions[0].endpoint,
         "https://push.example.test/subscription/1"
     );
+
+    let debug = app
+        .router()
+        .oneshot(get("/api/push/debug", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(debug.status(), StatusCode::OK);
+    let debug_body: Value = serde_json::from_str(&body_string(debug).await).unwrap();
+    assert_eq!(debug_body["configured"], true);
+    assert_eq!(debug_body["stored_subscriptions"], 1);
 }
 
 #[tokio::test]
@@ -286,8 +296,59 @@ async fn home_page_logged_in_shows_new_game() {
     assert!(html.contains("class=\"form-option-row\""));
     assert!(html.contains("role=\"tooltip\""));
     assert!(html.contains("name=\"jax_mode\""));
+    assert!(html.contains("href=\"/debug/notifications\""));
     assert!(!html.contains("href=\"/demo\""));
     assert!(!html.contains("Demo board"));
+}
+
+#[tokio::test]
+async fn notification_debug_page_requires_signin_and_exposes_tools() {
+    let app = test_app().await;
+    let logged_out = app
+        .router()
+        .oneshot(get("/debug/notifications", None))
+        .await
+        .unwrap();
+    assert_eq!(logged_out.status(), StatusCode::UNAUTHORIZED);
+
+    let (_user, cookie) = app.new_session();
+    let response = app
+        .router()
+        .oneshot(get("/debug/notifications", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_string(response).await;
+    assert!(html.contains("Notification debug"));
+    assert!(html.contains("/public/notification-debug.js"));
+    assert!(html.contains("id=\"debug-enable\""));
+    assert!(html.contains("id=\"debug-local-test\""));
+    assert!(html.contains("id=\"debug-server-test\""));
+}
+
+#[tokio::test]
+async fn notification_debug_api_reports_disabled_push_without_sending() {
+    let app = test_app().await;
+    let (_user, cookie) = app.new_session();
+
+    let status = app
+        .router()
+        .oneshot(get("/api/push/debug", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(status.status(), StatusCode::OK);
+    let status_body: Value = serde_json::from_str(&body_string(status).await).unwrap();
+    assert_eq!(status_body["configured"], false);
+    assert_eq!(status_body["stored_subscriptions"], 0);
+
+    let test = app
+        .router()
+        .oneshot(post_json("/api/push/test", Some(&cookie), "{}".to_string()))
+        .await
+        .unwrap();
+    assert_eq!(test.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let test_body: Value = serde_json::from_str(&body_string(test).await).unwrap();
+    assert_eq!(test_body["error"], "web push is not configured");
 }
 
 #[tokio::test]

@@ -37,6 +37,15 @@ struct TurnNotification<'a> {
     tag: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PushSendReport {
+    pub configured: bool,
+    pub subscriptions: usize,
+    pub sent: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+}
+
 impl PushService {
     pub fn from_env() -> Result<Self, AppError> {
         let private_key = match env::var("VAPID_PRIVATE_KEY") {
@@ -115,8 +124,9 @@ impl PushService {
             }
         };
 
+        let topic = game.id.simple().to_string();
         for subscription in user.push_subscriptions {
-            if let Err(err) = send_one(inner, &subscription, game.id, &payload).await {
+            if let Err(err) = send_one(inner, &subscription, &topic, &payload).await {
                 tracing::warn!(
                     error = %err,
                     game_id = %game.id,
@@ -127,12 +137,74 @@ impl PushService {
             }
         }
     }
+
+    pub async fn send_test(&self, users: &UserStore, user_id: Uuid) -> PushSendReport {
+        let Some(inner) = &self.inner else {
+            return PushSendReport {
+                configured: false,
+                subscriptions: 0,
+                sent: 0,
+                failed: 0,
+                errors: Vec::new(),
+            };
+        };
+        let subscriptions = users
+            .get(user_id)
+            .await
+            .map(|user| user.push_subscriptions)
+            .unwrap_or_default();
+
+        let notification = TurnNotification {
+            title: "Screwball notification test",
+            body: "If you can see this, server push is working.".to_string(),
+            url: "/debug/notifications".to_string(),
+            tag: "screwball-notification-debug".to_string(),
+        };
+        let payload = match serde_json::to_vec(&notification) {
+            Ok(payload) => payload,
+            Err(err) => {
+                return PushSendReport {
+                    configured: true,
+                    subscriptions: subscriptions.len(),
+                    sent: 0,
+                    failed: subscriptions.len(),
+                    errors: vec![format!("could not serialize push payload: {err}")],
+                };
+            }
+        };
+
+        let mut report = PushSendReport {
+            configured: true,
+            subscriptions: subscriptions.len(),
+            sent: 0,
+            failed: 0,
+            errors: Vec::new(),
+        };
+        for subscription in subscriptions {
+            match send_one(inner, &subscription, "notification-debug", &payload).await {
+                Ok(()) => report.sent += 1,
+                Err(err) => {
+                    report.failed += 1;
+                    report
+                        .errors
+                        .push(format!("{}: {err}", subscription.endpoint));
+                    tracing::warn!(
+                        error = %err,
+                        user_id = %user_id,
+                        endpoint = %subscription.endpoint,
+                        "debug web push send failed"
+                    );
+                }
+            }
+        }
+        report
+    }
 }
 
 async fn send_one(
     inner: &PushServiceInner,
     subscription: &PushSubscription,
-    game_id: Uuid,
+    topic: &str,
     payload: &[u8],
 ) -> Result<(), web_push::WebPushError> {
     let subscription_info = SubscriptionInfo::new(
@@ -147,7 +219,7 @@ async fn send_one(
     message.set_payload(ContentEncoding::Aes128Gcm, payload);
     message.set_ttl(86_400);
     message.set_urgency(Urgency::High);
-    message.set_topic(game_id.simple().to_string());
+    message.set_topic(topic.to_string());
     message.set_vapid_signature(signature_builder.build()?);
     inner.client.send(message.build()?).await
 }

@@ -148,8 +148,53 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
 <section class="card">
   <h1>Your games</h1>
   {list}
+  <p class="debug-link"><a href="/debug/notifications">Notification debug</a></p>
 </section>"#
         ),
+    )
+}
+
+pub fn notification_debug_page() -> String {
+    layout_with_head(
+        "Notification debug",
+        r#"<section class="card notification-debug">
+  <h1>Notification debug</h1>
+  <p class="muted">Use this to separate browser permission, service worker, subscription storage, and server push delivery.</p>
+
+  <div class="debug-grid">
+    <section class="debug-panel">
+      <h2>Browser</h2>
+      <dl class="debug-status">
+        <dt>Support</dt><dd id="debug-support">checking...</dd>
+        <dt>Permission</dt><dd id="debug-permission">checking...</dd>
+        <dt>Service worker</dt><dd id="debug-service-worker">checking...</dd>
+        <dt>Push subscription</dt><dd id="debug-subscription">checking...</dd>
+      </dl>
+    </section>
+    <section class="debug-panel">
+      <h2>Server</h2>
+      <dl class="debug-status">
+        <dt>Web push</dt><dd id="debug-server-configured">checking...</dd>
+        <dt>Stored subscriptions</dt><dd id="debug-server-subscriptions">checking...</dd>
+        <dt>VAPID public key</dt><dd id="debug-server-key">checking...</dd>
+      </dl>
+    </section>
+  </div>
+
+  <div class="debug-actions">
+    <button type="button" class="button" id="debug-enable">Enable/register</button>
+    <button type="button" class="button button-secondary" id="debug-local-test">Local notification</button>
+    <button type="button" class="button button-secondary" id="debug-server-test">Send server test</button>
+    <button type="button" class="button ghost" id="debug-unsubscribe">Unsubscribe</button>
+  </div>
+
+  <pre class="debug-output" id="debug-output" aria-live="polite"></pre>
+</section>"#,
+        &format!(
+            r#"<script type="module" src="{}" defer></script>"#,
+            asset("/public/notification-debug.js")
+        ),
+        "",
     )
 }
 

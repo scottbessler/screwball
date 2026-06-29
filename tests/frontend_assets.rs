@@ -1,6 +1,7 @@
 const GAME_JS: &str = include_str!("../public/game.js");
 const APP_CSS: &str = include_str!("../public/app.css");
 const SW_JS: &str = include_str!("../public/sw.js");
+const NOTIFICATION_DEBUG_JS: &str = include_str!("../public/notification-debug.js");
 
 #[test]
 fn htm_native_tags_do_not_split_immediately_after_tag_name() {
@@ -345,6 +346,20 @@ fn web_push_notification_flow_is_wired() {
             && SW_JS.contains("self.addEventListener(\"notificationclick\"")
             && SW_JS.contains("self.clients.openWindow(url)"),
         "service worker should show push notifications and open the target game",
+    );
+    assert!(
+        NOTIFICATION_DEBUG_JS.contains("registration.showNotification")
+            && NOTIFICATION_DEBUG_JS.contains("\"/api/push/debug\"")
+            && NOTIFICATION_DEBUG_JS.contains("\"/api/push/test\"")
+            && NOTIFICATION_DEBUG_JS.contains("\"/api/push/subscribe\"")
+            && NOTIFICATION_DEBUG_JS.contains("\"/api/push/unsubscribe\""),
+        "notification debug page should exercise browser display, subscription storage, and server push paths",
+    );
+    assert!(
+        css_rule_contains(".debug-grid", "display: grid;")
+            && css_rule_contains(".debug-output", "white-space: pre-wrap;")
+            && APP_CSS.contains(".debug-grid { grid-template-columns: 1fr; }"),
+        "notification debug diagnostics should be readable on desktop and mobile",
     );
 }
 

@@ -45,6 +45,7 @@ impl FromRef<AppState> for Key {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(routes::index))
+        .route("/debug/notifications", get(routes::notification_debug_page))
         .route("/sw.js", get(routes::service_worker))
         .route("/healthcheck", get(routes::healthcheck))
         .route("/auth/register/begin", post(auth::register_begin))
@@ -55,8 +56,10 @@ pub fn router(state: AppState) -> Router {
         .route("/games", post(routes::create_game))
         .route("/api/my-games", get(routes::my_games))
         .route("/api/push/vapid-public-key", get(routes::push_public_key))
+        .route("/api/push/debug", get(routes::push_debug_status))
         .route("/api/push/subscribe", post(routes::push_subscribe))
         .route("/api/push/unsubscribe", post(routes::push_unsubscribe))
+        .route("/api/push/test", post(routes::push_test))
         .route("/games/{id}", get(routes::game_page))
         .route("/games/{id}/join", post(routes::join_game))
         .route("/games/{id}/state", get(routes::game_state))

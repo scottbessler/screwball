@@ -218,6 +218,10 @@ pub async fn my_games(
     Json(summaries)
 }
 
+pub async fn notification_debug_page(AuthUser(_user): AuthUser) -> Html<String> {
+    Html(render::notification_debug_page())
+}
+
 #[derive(Serialize)]
 pub struct PushPublicKey {
     public_key: Option<String>,
@@ -230,6 +234,41 @@ pub async fn push_public_key(
     Json(PushPublicKey {
         public_key: state.push.public_key().map(str::to_string),
     })
+}
+
+#[derive(Serialize)]
+pub struct PushDebugStatus {
+    configured: bool,
+    stored_subscriptions: usize,
+    public_key: Option<String>,
+}
+
+pub async fn push_debug_status(
+    State(state): State<AppState>,
+    ApiAuthUser(user): ApiAuthUser,
+) -> Json<PushDebugStatus> {
+    let stored_subscriptions = state
+        .users
+        .get(user)
+        .await
+        .map(|user| user.push_subscriptions.len())
+        .unwrap_or(0);
+    Json(PushDebugStatus {
+        configured: state.push.is_enabled(),
+        stored_subscriptions,
+        public_key: state.push.public_key().map(str::to_string),
+    })
+}
+
+pub async fn push_test(State(state): State<AppState>, ApiAuthUser(user): ApiAuthUser) -> Response {
+    if !state.push.is_enabled() {
+        return api_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "web push is not configured",
+        );
+    }
+    let report = state.push.send_test(&state.users, user).await;
+    (StatusCode::OK, Json(report)).into_response()
 }
 
 #[derive(Deserialize)]

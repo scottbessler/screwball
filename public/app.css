@@ -362,6 +362,74 @@ body {
   font-size: 0.85rem;
 }
 
+.debug-link {
+  margin-top: 0.9rem;
+}
+
+.notification-debug {
+  max-width: 860px;
+}
+
+.debug-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.debug-panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.85rem;
+}
+
+.debug-panel h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+}
+
+.debug-status {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.debug-status dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.debug-status dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.debug-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.debug-actions .button {
+  margin-top: 0;
+}
+
+.debug-output {
+  min-height: 7rem;
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--board-bg);
+  color: var(--ink);
+  font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
 .other-games h2 {
   font-size: 0.95rem;
   margin: 0 0 0.4rem;
@@ -852,6 +920,7 @@ section.card + section.card {
   .rack-tile .tile-letter { font-size: 0.95rem; }
   .controls .button { flex: 1 1 auto; text-align: center; }
   .letter-grid { grid-template-columns: repeat(6, 1fr); }
+  .debug-grid { grid-template-columns: 1fr; }
 }
 
 /* Touch drag ghost (works at any viewport width) */
