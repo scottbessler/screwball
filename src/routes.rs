@@ -30,24 +30,41 @@ fn viewer_id(user: Option<Uuid>) -> Uuid {
 
 pub async fn index(State(state): State<AppState>, MaybeUser(user): MaybeUser) -> Html<String> {
     let Some(user) = user else {
-        return Html(render::home_page(&[], None, None));
+        return Html(render::home_page(&[], &[], None, None));
     };
     let games = state.store.list().await;
     let mine: Vec<Game> = games
-        .into_iter()
-        .filter(|game| {
-            game.seats.iter().any(|seat| match seat.kind {
-                SeatKind::Human { user_id } => user_id == Some(user),
-                SeatKind::Bot { .. } => false,
-            })
-        })
+        .iter()
+        .filter(|game| is_user_seated(game, user))
+        .cloned()
+        .collect();
+    let joinable: Vec<Game> = games
+        .iter()
+        .filter(|game| game.status != GameStatus::Finished)
+        .filter(|game| !is_user_seated(game, user))
+        .filter(|game| has_open_seat(game))
+        .cloned()
         .collect();
     let display_name = state.users.get(user).await.map(|u| u.display_name);
     Html(render::home_page(
         &mine,
+        &joinable,
         Some(user),
         display_name.as_deref(),
     ))
+}
+
+fn is_user_seated(game: &Game, user: Uuid) -> bool {
+    game.seats.iter().any(|seat| match seat.kind {
+        SeatKind::Human { user_id } => user_id == Some(user),
+        SeatKind::Bot { .. } => false,
+    })
+}
+
+fn has_open_seat(game: &Game) -> bool {
+    game.seats
+        .iter()
+        .any(|seat| matches!(seat.kind, SeatKind::Human { user_id: None }))
 }
 
 pub async fn healthcheck() -> &'static str {

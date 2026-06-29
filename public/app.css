@@ -507,6 +507,20 @@ body {
   font-weight: 600;
 }
 
+.open-game-list-item {
+  justify-content: flex-start;
+}
+
+.inline-join-form {
+  margin-left: auto;
+}
+
+.inline-join-form .button {
+  margin-top: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+}
+
 .game-list-item.is-finished {
   color: var(--muted);
   background: rgba(216, 210, 196, 0.16);

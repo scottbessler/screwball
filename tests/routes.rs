@@ -297,8 +297,103 @@ async fn home_page_logged_in_shows_new_game() {
     assert!(html.contains("role=\"tooltip\""));
     assert!(html.contains("name=\"jax_mode\""));
     assert!(html.contains("href=\"/debug/notifications\""));
+    assert!(!html.contains("Open games"));
     assert!(!html.contains("href=\"/demo\""));
     assert!(!html.contains("Demo board"));
+}
+
+#[tokio::test]
+async fn home_page_lists_joinable_open_games_separately() {
+    let app = test_app().await;
+    let (viewer, viewer_cookie) = app.register("viewer", "Viewer").await;
+    let (host, _host_cookie) = app.register("host", "Host").await;
+    let mut rng = StdRng::seed_from_u64(41);
+
+    let joinable = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(host),
+                },
+                name: "Host".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Human { user_id: None },
+                name: "Open seat".to_string(),
+            },
+        ],
+        false,
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+    let joinable_id = joinable.id;
+
+    let owned_open = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(viewer),
+                },
+                name: "Viewer".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Human { user_id: None },
+                name: "Open seat".to_string(),
+            },
+        ],
+        false,
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+
+    let mut finished_open = new_game(
+        vec![
+            SeatSpec {
+                kind: SeatKind::Human {
+                    user_id: Some(host),
+                },
+                name: "Finished host".to_string(),
+            },
+            SeatSpec {
+                kind: SeatKind::Human { user_id: None },
+                name: "Open seat".to_string(),
+            },
+        ],
+        false,
+        false,
+        false,
+        0,
+        &mut rng,
+    );
+    finished_open.status = GameStatus::Finished;
+
+    app.insert_game(joinable).await;
+    app.insert_game(owned_open).await;
+    app.insert_game(finished_open).await;
+
+    let response = app
+        .router()
+        .oneshot(get("/", Some(&viewer_cookie)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_string(response).await;
+
+    assert!(html.contains("<h1>Open games</h1>"));
+    assert!(html.contains("Host vs Open seat"));
+    assert!(html.contains(&format!(r#"action="/games/{joinable_id}/join""#)));
+    assert!(
+        html.contains(r#"<button type="submit" class="button button-secondary">Join</button>"#)
+    );
+    assert!(!html.contains("Finished host vs Open seat"));
+
+    let your_games = html.find("<h1>Your games</h1>").unwrap();
+    let open_games = html.find("<h1>Open games</h1>").unwrap();
+    assert!(your_games < open_games);
 }
 
 #[tokio::test]

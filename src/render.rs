@@ -111,7 +111,12 @@ pub fn error_page(title: &str, message: &str) -> String {
     )
 }
 
-pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&str>) -> String {
+pub fn home_page(
+    games: &[Game],
+    joinable_games: &[Game],
+    current: Option<Uuid>,
+    display_name: Option<&str>,
+) -> String {
     let Some(current) = current else {
         return layout_with_head(
             "Screwball",
@@ -128,6 +133,18 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
         "<p class=\"muted\">No games yet. Create one to get started.</p>".to_string()
     } else {
         game_list(games, current)
+    };
+    let open_games = if joinable_games.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<section class="card">
+  <h1>Open games</h1>
+  <p class="muted">Games with open seats waiting for another player.</p>
+  {}
+</section>"#,
+            open_game_list(joinable_games),
+        )
     };
     let greeting = display_name
         .map(|name| format!("Signed in as <strong>{}</strong>", escape(name)))
@@ -149,7 +166,8 @@ pub fn home_page(games: &[Game], current: Option<Uuid>, display_name: Option<&st
   <h1>Your games</h1>
   {list}
   <p class="debug-link"><a href="/debug/notifications">Notification debug</a></p>
-</section>"#
+</section>
+{open_games}"#
         ),
     )
 }
@@ -341,6 +359,31 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
         r#"<li class="{item_class}">
   <a href="/games/{id}">{players}</a>
   <span class="game-list-status muted">{status}</span>{badge}
+</li>"#,
+        id = game.id,
+        players = players.join(" vs "),
+    )
+}
+
+fn open_game_list(games: &[Game]) -> String {
+    let rows: String = games.iter().map(open_game_list_item).collect();
+    format!("<ul class=\"game-list open-game-list\">{rows}</ul>")
+}
+
+fn open_game_list_item(game: &Game) -> String {
+    let players: Vec<String> = game.seats.iter().map(|seat| escape(&seat.name)).collect();
+    let status = match game.status {
+        GameStatus::Lobby => "lobby",
+        GameStatus::Active => "active",
+        GameStatus::Finished => "finished",
+    };
+    format!(
+        r#"<li class="game-list-item open-game-list-item">
+  <a href="/games/{id}">{players}</a>
+  <span class="game-list-status muted">{status}</span>
+  <form class="inline-join-form" method="post" action="/games/{id}/join">
+    <button type="submit" class="button button-secondary">Join</button>
+  </form>
 </li>"#,
         id = game.id,
         players = players.join(" vs "),
