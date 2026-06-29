@@ -551,10 +551,13 @@ fn render_join_form(view: &GameView) -> String {
 /// The "your other games" panel: every other game the viewer is seated in, with
 /// games waiting on the viewer flagged "your turn".
 fn render_other_games(games: &[GameSummary]) -> String {
-    if games.is_empty() {
+    // Match the live OtherGames panel, which only lists in-progress games — else
+    // finished games flash in on first paint and vanish once JS hydrates.
+    let active: Vec<&GameSummary> = games.iter().filter(|game| game.is_active).collect();
+    if active.is_empty() {
         return String::new();
     }
-    let items: String = games
+    let items: String = active
         .iter()
         .map(|game| {
             let players: Vec<String> = game.players.iter().map(|name| escape(name)).collect();
