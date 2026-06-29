@@ -660,7 +660,9 @@ function Rack({
     const dragging = touchState.current ? touchState.current.originalId : null;
     for (const el of rack.querySelectorAll(".rack-tile[data-tile-id]")) {
       const id = Number(el.dataset.tileId);
-      const left = el.getBoundingClientRect().left;
+      // offsetLeft (not getBoundingClientRect) so an in-flight FLIP transform
+      // from a rapid prior reorder doesn't poison the next baseline → no jump.
+      const left = el.offsetLeft;
       next.set(id, left);
       const old = prev.get(id);
       if (old != null && Math.abs(old - left) > 0.5 && id !== dragging) {
