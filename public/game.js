@@ -2147,7 +2147,7 @@ function App({ gameId, initial }) {
         class: "button ghost hint-btn",
         disabled: !yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0),
         onClick: requestHint,
-      }, hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining} left)`)
+      }, hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining})`)
     : null;
   const johnLetter = hoverLetter ||
     (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank

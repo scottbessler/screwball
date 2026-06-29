@@ -1009,13 +1009,22 @@ section.card + section.card {
 }
 
 .controls .button {
+  flex: 1 1 0;
   margin-top: 0;
   min-width: 7rem;
   text-align: center;
 }
 
+.controls.has-hint .button {
+  min-width: 0;
+}
+
 .controls .play-button {
   min-width: 7rem;
+}
+
+.controls.has-hint .play-button {
+  min-width: 0;
 }
 
 .button.ghost {
@@ -1429,15 +1438,24 @@ section.card + section.card {
   }
 
   .controls .button {
-    flex: 0 1 auto;
+    flex: 1 1 0;
     min-width: 5.8rem;
     text-align: center;
     padding: 0.45rem 0.6rem;
     font-size: 0.78rem;
   }
 
+  .controls.has-hint .button {
+    min-width: 0;
+    padding: 0.45rem 0.35rem;
+  }
+
   .controls .play-button {
     min-width: 5.8rem;
+  }
+
+  .controls.has-hint .play-button {
+    min-width: 0;
   }
 
   /* Hide non-game cards on mobile game page */
@@ -1573,18 +1591,9 @@ section.card + section.card {
   pointer-events: none;
 }
 
-/* Hint button */
 .hint-btn {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--ink);
+  white-space: nowrap;
 }
-.hint-btn:hover { border-color: var(--accent); color: var(--accent); }
-.hint-btn:disabled { opacity: 0.4; cursor: default; }
 .hint-result {
   font-size: 0.85rem;
   color: var(--accent);
