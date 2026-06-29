@@ -2032,6 +2032,12 @@ function App({ gameId, initial }) {
 
   function swapAction() {
     if (mode === "exchange") {
+      // Nothing selected → treat Swap as "cancel exchange" so you aren't
+      // trapped in exchange mode with no way back to placing tiles.
+      if (!exchange.size) {
+        setMode("place");
+        return;
+      }
       submitExchange();
       return;
     }
