@@ -16,7 +16,8 @@ kill_timeout = '5s'
   PORT = '8080'
   RP_ID = 'screwball.fly.dev'
   RP_ORIGIN = 'https://screwball.fly.dev'
-  # SESSION_SECRET is set as a Fly secret (fly secrets set SESSION_SECRET=...).
+  VAPID_SUBJECT = 'https://screwball.fly.dev'
+  # SESSION_SECRET and VAPID_PRIVATE_KEY are set as Fly secrets.
 
 [processes]
   app = '/app/screwball'
