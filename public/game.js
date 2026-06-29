@@ -2237,7 +2237,7 @@ function App({ gameId, initial }) {
       ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
       ${game.jax_mode ? html`<span class="game-badge">Jax Mode</span>` : null}
       ${hintsUnlimited ? html`<span class="game-badge">unlimited hints</span>` : null}
-      ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
+      ${!hintsUnlimited && game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
     <${Scoreboard} game=${game} />
     <p class="muted">Tiles in bag: ${game.bag_count}</p>
