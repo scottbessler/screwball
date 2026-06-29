@@ -1633,6 +1633,7 @@ function App({ gameId, initial }) {
             : null;
           notifyTurn(
             who ? `${who} just played` : "It's your turn in Screwball",
+            `/games/${gameId}`,
           );
         }
         setGame(next);
