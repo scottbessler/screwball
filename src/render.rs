@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
-use crate::view::{GameSummary, GameView, SquareView, premium_code};
+use crate::view::{GameSummary, GameView, PositionView, SquareView, premium_code};
 
 /// Content-hash of the static assets, set once at startup for release builds.
 /// Debug builds hash each asset at render time so local edits do not keep
@@ -482,7 +482,7 @@ pub fn game_page(
     other_games: &[GameSummary],
     logged_in: bool,
 ) -> String {
-    let board = render_board_squares(&view.board);
+    let board = render_board_squares(&view.board, &view.last_play);
     let scoreboard = render_scoreboard(view);
     let log = render_move_log(view);
     let other = render_other_games(other_games);
@@ -698,7 +698,7 @@ fn render_move_log(view: &GameView) -> String {
     format!("<ul class=\"move-log\">{items}</ul>")
 }
 
-fn render_board_squares(squares: &[SquareView]) -> String {
+fn render_board_squares(squares: &[SquareView], last_play: &[PositionView]) -> String {
     let mut cells = String::new();
     for (index, square) in squares.iter().enumerate() {
         let row = index / BOARD_SIZE;
@@ -706,10 +706,16 @@ fn render_board_squares(squares: &[SquareView]) -> String {
         match square.letter {
             Some(letter) => {
                 let blank = if square.is_blank { " tile-blank" } else { "" };
+                // Match the client, which rings the most recent play's tiles.
+                let last = if last_play.iter().any(|p| p.row == row && p.col == col) {
+                    " last-play"
+                } else {
+                    ""
+                };
                 let points = crate::models::letter_points(letter);
                 let shown = if square.is_blank { 0 } else { points };
                 cells.push_str(&format!(
-                    r#"<div class="cell tile{blank}" data-row="{row}" data-col="{col}"><span class="tile-letter">{letter}</span><span class="tile-points">{shown}</span></div>"#,
+                    r#"<div class="cell tile{blank}{last}" data-row="{row}" data-col="{col}"><span class="tile-letter">{letter}</span><span class="tile-points">{shown}</span></div>"#,
                 ));
             }
             None => {
@@ -750,5 +756,5 @@ pub fn render_board(board: &Board) -> String {
             is_blank: square.tile.is_some_and(|t| t.is_blank),
         })
         .collect();
-    render_board_squares(&squares)
+    render_board_squares(&squares, &[])
 }
