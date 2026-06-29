@@ -155,6 +155,51 @@ function previewScore(game, pending) {
   return total;
 }
 
+// Whether the pending placement is structurally legal (ignores the dictionary —
+// the server still validates words). Mirrors validate_play in src/game.rs: in a
+// line, contiguous, forms a word, first move covers center, else connects to an
+// existing tile.
+function placementLegal(game, pending) {
+  if (!pending.length) return false;
+  const placedSet = new Set(pending.map((p) => idx(p.row, p.col)));
+  const occupied = (r, c) => {
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return false;
+    return Boolean(game.board[idx(r, c)].letter) || placedSet.has(idx(r, c));
+  };
+  const sameRow = pending.every((p) => p.row === pending[0].row);
+  const sameCol = pending.every((p) => p.col === pending[0].col);
+  if (!sameRow && !sameCol) return false;
+  const multiCol = pending.some((p) => p.col !== pending[0].col);
+  const multiRow = pending.some((p) => p.row !== pending[0].row);
+  const [main, cross] = multiCol
+    ? [[0, 1], [1, 0]]
+    : multiRow
+      ? [[1, 0], [0, 1]]
+      : [[0, 1], [1, 0]];
+  const run = ([sr, sc], [dr, dc]) => {
+    let r = sr, c = sc;
+    while (occupied(r - dr, c - dc)) { r -= dr; c -= dc; }
+    const cells = [];
+    while (occupied(r, c)) { cells.push([r, c]); r += dr; c += dc; }
+    return cells;
+  };
+  const mainRun = run([pending[0].row, pending[0].col], main);
+  const mainSet = new Set(mainRun.map(([r, c]) => idx(r, c)));
+  // Contiguity: every placed tile sits within the single main-axis run.
+  if (!pending.every((p) => mainSet.has(idx(p.row, p.col)))) return false;
+  const words = [];
+  if (mainRun.length >= 2) words.push(mainRun);
+  for (const p of pending) {
+    const x = run([p.row, p.col], cross);
+    if (x.length >= 2) words.push(x);
+  }
+  if (!words.length) return false;
+  const boardEmpty = game.board.every((sq) => !sq.letter);
+  if (boardEmpty) return placedSet.has(idx(CENTER, CENTER));
+  // Must connect to an existing tile: some word cell isn't newly placed.
+  return words.some((cells) => cells.some(([r, c]) => !placedSet.has(idx(r, c))));
+}
+
 function isActive(game) {
   return game.status === "Active";
 }
@@ -2055,19 +2100,14 @@ function App({ gameId, initial }) {
     setSelected(null);
   }
 
-  function swapAction() {
-    if (mode === "exchange") {
-      // Nothing selected → treat Swap as "cancel exchange" so you aren't
-      // trapped in exchange mode with no way back to placing tiles.
-      if (!exchange.size) {
-        setMode("place");
-        return;
-      }
-      submitExchange();
-      return;
-    }
+  function enterExchange() {
     clearPendingTiles();
     setMode("exchange");
+  }
+
+  function cancelExchange() {
+    setMode("place");
+    setExchange(new Set());
   }
 
   const finished = game.status === "Finished";
@@ -2141,6 +2181,27 @@ function App({ gameId, initial }) {
         onClick: () => goToNextGame(),
       }, "Next"),
     ];
+  } else if (mode === "exchange") {
+    controlButtons = [
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: cancelExchange,
+      }, "Cancel"),
+      h("button", {
+        type: "button",
+        class: "button",
+        disabled: busy || exchange.size === 0,
+        onClick: submitExchange,
+      }, exchange.size ? `Swap ${exchange.size}` : "Swap"),
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: true,
+        onClick: () => {},
+      }, "Pass"),
+    ];
   } else if (hasPendingTiles) {
     controlButtons = [
       h("button", {
@@ -2153,12 +2214,12 @@ function App({ gameId, initial }) {
         type: "button",
         class: "button ghost",
         disabled: busy,
-        onClick: swapAction,
+        onClick: enterExchange,
       }, "Swap"),
       h("button", {
         type: "button",
         class: "button play-button",
-        disabled: busy,
+        disabled: busy || !placementLegal(game, pending),
         onClick: submitPlay,
       }, `Play ${pendingScore != null ? pendingScore : ""}`.trim()),
     ];
@@ -2174,12 +2235,12 @@ function App({ gameId, initial }) {
         type: "button",
         class: "button ghost",
         disabled: busy,
-        onClick: swapAction,
+        onClick: enterExchange,
       }, "Swap"),
       h("button", {
         type: "button",
         class: "button ghost",
-        disabled: busy || mode === "exchange",
+        disabled: busy,
         onClick: () => {
           if (window.confirm("Pass your turn?")) postMove({ kind: "pass" });
         },
