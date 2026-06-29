@@ -1673,30 +1673,56 @@ function App({ gameId, initial }) {
     setHintResult(null);
   }, [game.turn, game.hints_remaining, game.hints_unlimited]);
 
-  // Poll for opponent/bot moves while we are waiting.
+  // Track the last-rendered turn so a pushed state can detect the transition
+  // *into* your turn (for the notification) without re-notifying repeatedly.
+  const prevTurnRef = useRef(yourTurn);
   useEffect(() => {
-    if (yourTurn || game.status === "Finished") return undefined;
-    const timer = setInterval(async () => {
+    prevTurnRef.current = yourTurn;
+  }, [yourTurn]);
+
+  // Live updates via Server-Sent Events: the server pushes a fresh state on
+  // every change instead of us polling. EventSource auto-reconnects on drop;
+  // a visibility refetch covers a stream that stalled while backgrounded.
+  useEffect(() => {
+    const applyState = (next) => {
+      if (
+        isYourTurn(next) &&
+        !prevTurnRef.current &&
+        document.visibilityState !== "visible"
+      ) {
+        const who = next.moves.length
+          ? next.seats[next.moves[next.moves.length - 1].seat]?.name
+          : null;
+        notifyTurn(
+          who ? `${who} just played` : "It's your turn in Screwball",
+          `/games/${gameId}`,
+        );
+      }
+      setGame(next);
+    };
+    const es = new EventSource(`/games/${gameId}/events`);
+    es.addEventListener("message", (e) => {
+      try {
+        applyState(JSON.parse(e.data));
+      } catch {
+        /* ignore malformed event */
+      }
+    });
+    async function refetchIfVisible() {
+      if (document.visibilityState !== "visible") return;
       try {
         const res = await fetch(`/games/${gameId}/state`);
-        if (!res.ok) return;
-        const next = await res.json();
-        if (isYourTurn(next)) {
-          const who = next.moves.length
-            ? next.seats[next.moves[next.moves.length - 1].seat]?.name
-            : null;
-          notifyTurn(
-            who ? `${who} just played` : "It's your turn in Screwball",
-            `/games/${gameId}`,
-          );
-        }
-        setGame(next);
+        if (res.ok) applyState(await res.json());
       } catch {
-        /* transient network error; keep polling */
+        /* transient network error */
       }
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [gameId, yourTurn, game.status]);
+    }
+    document.addEventListener("visibilitychange", refetchIfVisible);
+    return () => {
+      es.close();
+      document.removeEventListener("visibilitychange", refetchIfVisible);
+    };
+  }, [gameId]);
 
   // Reset the rack display order whenever the underlying rack changes.
   const sig = rackSignature(game);
@@ -2114,6 +2140,15 @@ function App({ gameId, initial }) {
   const hasPendingTiles = pending.length > 0;
   const recallByRackId = (rackId) => recallTile({ rackId });
   const hintsUnlimited = game.hints_unlimited;
+  const hintsEnabled = !finished && (game.hints_allowed > 0 || hintsUnlimited);
+  const hintControl = hintsEnabled
+    ? h("button", {
+        type: "button",
+        class: "button ghost hint-btn",
+        disabled: !yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0),
+        onClick: requestHint,
+      }, hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining} left)`)
+    : null;
   const johnLetter = hoverLetter ||
     (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
       ? rackTiles[selected].letter
@@ -2247,7 +2282,10 @@ function App({ gameId, initial }) {
       }, "Pass"),
     ];
   }
-  const controls = h("div", { class: "controls" }, controlButtons);
+  if (hintControl) {
+    controlButtons.push(hintControl);
+  }
+  const controls = h("div", { class: `controls${hintControl ? " has-hint" : ""}` }, controlButtons);
   const rackArea = seated
     ? h("div", { class: "rack-area" }, [
         !finished
@@ -2267,16 +2305,7 @@ function App({ gameId, initial }) {
           : null,
         error ? html`<p class="move-error">${error}</p>` : null,
         controls,
-        !finished && (game.hints_allowed > 0 || hintsUnlimited)
-          ? html`<div>
-              <button type="button" class="hint-btn"
-                disabled=${!yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0)}
-                onClick=${requestHint}>
-                ${hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining} left)`}
-              </button>
-              ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
-            </div>`
-          : null,
+        hintsEnabled && hintResult ? html`<p class="hint-result">${hintResult}</p>` : null,
         !finished && game.john_mode
           ? h(
               "div",

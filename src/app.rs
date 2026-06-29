@@ -64,6 +64,7 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}", get(routes::game_page))
         .route("/games/{id}/join", post(routes::join_game))
         .route("/games/{id}/state", get(routes::game_state))
+        .route("/games/{id}/events", get(routes::game_events))
         .route("/games/{id}/move", post(routes::submit_move))
         .route("/games/{id}/hint", post(routes::hint))
         .route("/api/define/{word}", get(routes::define))

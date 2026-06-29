@@ -6,7 +6,7 @@ use std::{
 };
 
 use chrono::Utc;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, broadcast};
 use uuid::Uuid;
 
 use crate::{error::AppError, models::Game};
@@ -29,6 +29,9 @@ struct Entry {
 pub struct GameStore {
     games: Mutex<HashMap<Uuid, Entry>>,
     dir: PathBuf,
+    /// Fires the id of a game whenever it changes, so SSE subscribers can push
+    /// fresh state to clients instead of having them poll.
+    changes: broadcast::Sender<Uuid>,
 }
 
 impl GameStore {
@@ -67,13 +70,20 @@ impl GameStore {
         Ok(Self {
             games: Mutex::new(games),
             dir,
+            changes: broadcast::channel(256).0,
         })
+    }
+
+    /// Subscribe to game-change notifications (the changed game's id).
+    pub fn subscribe(&self) -> broadcast::Receiver<Uuid> {
+        self.changes.subscribe()
     }
 
     pub async fn insert(&self, game: Game) -> Result<(), AppError> {
         let id = game.id;
         self.persist(&game).await?;
         self.games.lock().unwrap().insert(id, Entry::new(game));
+        let _ = self.changes.send(id);
         Ok(())
     }
 
@@ -133,6 +143,7 @@ impl GameStore {
         if let Some(entry) = self.games.lock().unwrap().get_mut(&id) {
             entry.game = Arc::new(working);
         }
+        let _ = self.changes.send(id);
         Ok(outcome)
     }
 

@@ -1,11 +1,18 @@
+use std::convert::Infallible;
+
 use axum::{
     Json,
     extract::{Form, Path, State},
     http::{StatusCode, header},
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{
+        Html, IntoResponse, Redirect, Response,
+        sse::{Event, KeepAlive, Sse},
+    },
 };
+use futures_util::stream::{Stream, unfold};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
 use crate::{
@@ -412,6 +419,59 @@ pub async fn game_state(
         .await
         .ok_or_else(|| AppError::not_found("game not found"))?;
     Ok(Json(GameView::for_viewer(&game, viewer_id(user))))
+}
+
+/// Server-Sent Events stream of this game's state for the viewer: an immediate
+/// snapshot, then a fresh view every time the game changes. Replaces client
+/// polling — clients open one EventSource instead of refetching on a timer.
+pub async fn game_events(
+    State(state): State<AppState>,
+    MaybeUser(user): MaybeUser,
+    Path(id): Path<Uuid>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppError> {
+    let viewer = viewer_id(user);
+    let initial = state
+        .store
+        .get(id)
+        .await
+        .ok_or_else(|| AppError::not_found("game not found"))?;
+    let rx = state.store.subscribe();
+    let store = state.store.clone();
+
+    // State carried through the stream: Some(view) to emit first, then wait for
+    // change notifications and fetch the latest view on each.
+    let stream = unfold(
+        (Some(initial), rx, store, id, viewer),
+        move |(pending, mut rx, store, id, viewer)| async move {
+            if let Some(game) = pending {
+                let event = sse_state_event(&game, viewer);
+                return Some((Ok(event), (None, rx, store, id, viewer)));
+            }
+            loop {
+                let emit = match rx.recv().await {
+                    Ok(changed) => changed == id,
+                    // Dropped some notifications under load — send the latest anyway.
+                    Err(RecvError::Lagged(_)) => true,
+                    Err(RecvError::Closed) => return None,
+                };
+                if !emit {
+                    continue;
+                }
+                let game = store.get(id).await?;
+                let event = sse_state_event(&game, viewer);
+                return Some((Ok(event), (None, rx, store, id, viewer)));
+            }
+        },
+    );
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+fn sse_state_event(game: &Game, viewer: Uuid) -> Event {
+    let view = GameView::for_viewer(game, viewer);
+    Event::default()
+        .json_data(&view)
+        .unwrap_or_else(|_| Event::default().comment("serialize error"))
 }
 
 #[derive(Deserialize)]
