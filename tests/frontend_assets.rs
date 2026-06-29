@@ -384,7 +384,15 @@ fn desktop_game_page_keeps_scroll_inside_game_surfaces() {
             && css_rule_contains("body.game-page", "overflow: hidden;")
             && css_rule_contains(".game-page .page", "height: calc(100vh - 3.1rem);")
             && css_rule_contains(".game-page .page", "overflow: visible;")
+            && css_rule_contains(".game-page .page > .card:last-child", "height: 100%;")
+            && css_rule_contains(".game-page .page > .card:last-child", "display: flex;")
             && css_rule_contains(".game-page .page > .card:last-child", "overflow: visible;")
+            && css_rule_contains(".game-page .game", "height: 100%;")
+            && css_rule_contains(".game-page .game", "display: flex;")
+            && css_rule_contains(".game-page .game-layout", "flex: 1 1 auto;")
+            && css_rule_contains(".game-page .game-layout", "min-height: 0;")
+            && css_rule_contains(".game-page .sidebar", "align-self: stretch;")
+            && css_rule_contains(".game-page .sidebar", "min-height: 0;")
             && css_rule_contains(".game-page .sidebar", "overflow-y: auto;"),
         "desktop game detail pages should not grow the document scrollbar",
     );
