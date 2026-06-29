@@ -1129,30 +1129,32 @@ async function fetchDefinition(word) {
 }
 
 function MoveLog({ game }) {
-  // word (uppercase) -> { open, loading, def } cached across re-renders.
+  // word (uppercase) -> { loading, def } network cache, shared across entries.
   const [defs, setDefs] = useState({});
+  // Set of "moveIndex:WORD" entries whose definition is expanded — scoped per
+  // log row so the same word in two rows doesn't toggle both.
+  const [open, setOpen] = useState(() => new Set());
 
   function patch(key, fields) {
     setDefs((d) => ({ ...d, [key]: { ...d[key], ...fields } }));
   }
 
-  async function toggleDef(word) {
+  async function toggleDef(entryKey, word) {
     const key = word.toUpperCase();
-    const cur = defs[key];
-    if (cur && cur.open) {
-      patch(key, { open: false });
-      return;
-    }
-    if (cur && "def" in cur) {
-      patch(key, { open: true });
-      return;
-    }
-    patch(key, { open: true, loading: true });
+    const id = `${entryKey}:${key}`;
+    setOpen((prev) => {
+      const nextSet = new Set(prev);
+      if (nextSet.has(id)) nextSet.delete(id);
+      else nextSet.add(id);
+      return nextSet;
+    });
+    if (defs[key] && "def" in defs[key]) return;
+    patch(key, { loading: true });
     try {
       const def = await fetchDefinition(word);
-      patch(key, { open: true, loading: false, def });
+      patch(key, { loading: false, def });
     } catch {
-      patch(key, { open: true, loading: false, def: null });
+      patch(key, { loading: false, def: null });
     }
   }
 
@@ -1162,26 +1164,27 @@ function MoveLog({ game }) {
   const recent = game.moves.slice(-10).toReversed();
   return html`<ul class="move-log">
     ${recent.map((mv, n) => {
+      const absIdx = game.moves.length - 1 - n;
       const name = game.seats[mv.seat] ? game.seats[mv.seat].name : "?";
       if (mv.kind === "play") {
-        return html`<li key=${n}>
+        return html`<li key=${absIdx}>
           <strong>${name}</strong>:${" "}
           ${mv.words.map(
             (w, i) => html`${i ? ", " : ""}<button
                 type="button"
                 class="word-def"
                 title="Show definition"
-                onClick=${() => toggleDef(w)}
+                onClick=${() => toggleDef(absIdx, w)}
               >${w}</button>`,
           )}
           ${` (+${mv.points})`}
           ${mv.words
-            .filter((w) => defs[w.toUpperCase()] && defs[w.toUpperCase()].open)
+            .filter((w) => open.has(`${absIdx}:${w.toUpperCase()}`))
             .map((w) => {
               const d = defs[w.toUpperCase()];
               return html`<div class="word-definition" key=${w}>
                 <strong>${w}</strong>${" "}
-                ${d.loading
+                ${!d || d.loading
                   ? html`<span class="muted">…</span>`
                   : d.def
                     ? html`<span class="muted">(${d.def.pos})</span> ${d.def.text}`
@@ -1201,7 +1204,7 @@ function MoveLog({ game }) {
       } else {
         detail = "passed";
       }
-      return html`<li key=${n}><strong>${name}</strong>: ${detail}</li>`;
+      return html`<li key=${absIdx}><strong>${name}</strong>: ${detail}</li>`;
     })}
   </ul>`;
 }
