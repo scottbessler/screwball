@@ -1872,6 +1872,13 @@ function App({ gameId, initial }) {
     setPending(pending.filter((p) => p.rackId !== place.rackId));
   }
 
+  // Drop/drag placement can land on the keyboard cursor's square; the cursor is
+  // only drawn on empty cells, so leave it there and it silently vanishes while
+  // typing still skips ahead. Clear it when a tile takes its square.
+  function clearCursorIfAt(row, col) {
+    setCursor((cur) => (cur && cur.row === row && cur.col === col ? null : cur));
+  }
+
   function placeTileOnBoard(tile, row, col) {
     if (!yourTurn || mode !== "place") return;
     if (game.board[idx(row, col)].letter) return;
@@ -1885,6 +1892,7 @@ function App({ gameId, initial }) {
       { row, col, letter: tile.letter, isBlank: false, rackId: tile.id },
     ]);
     setSelected(null);
+    clearCursorIfAt(row, col);
   }
 
   function dropTileOnBoard(tileId, row, col) {
@@ -1903,6 +1911,7 @@ function App({ gameId, initial }) {
       { row, col, letter: tile.letter, isBlank: tile.is_blank, rackId: tileId },
     ]);
     setSelected(null);
+    clearCursorIfAt(row, col);
   }
 
   // Relocate an already-placed (pending) tile to another empty square.
@@ -1913,6 +1922,7 @@ function App({ gameId, initial }) {
     setPending(
       pending.map((p) => (p.rackId === rackId ? { ...p, row, col } : p)),
     );
+    clearCursorIfAt(row, col);
   }
 
   async function requestHint() {
