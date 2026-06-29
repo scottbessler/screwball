@@ -746,8 +746,11 @@ function Rack({
     if (dragId.current === null || isPointOverBoard(e.clientX, e.clientY)) {
       return null;
     }
-    const target = rackReorderTarget(e.clientX, e.clientY, dragId.current);
-    return target && shouldReorderToward(dragId.current, target) ? target : null;
+    // Show the insertion marker for the nearest slot regardless of whether the
+    // drop would actually move the tile — the no-op check belongs at commit
+    // (commitDesktopRackTarget), not here, otherwise the bar vanishes whenever
+    // you hover near the dragged tile's own position.
+    return rackReorderTarget(e.clientX, e.clientY, dragId.current);
   }
 
   function previewDesktopRackTarget(e) {
@@ -819,8 +822,11 @@ function Rack({
     const rackPoint = rackRect && touch.clientY >= rackRect.top
       ? { x: touch.clientX, y: touch.clientY }
       : point;
+    // Marker shows for the nearest slot; the no-op check is applied at commit
+    // (onReorder → rackOrderAfterInsertion returns null for a no-op), so the bar
+    // stays visible while dragging near the tile's own position.
     const target = rackReorderTarget(rackPoint.x, rackPoint.y, state.originalId);
-    if (target && shouldReorderToward(state.originalId, target)) {
+    if (target) {
       return { kind: "rack", target };
     }
     return { kind: "none" };
