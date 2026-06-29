@@ -101,13 +101,21 @@ fn board_labels_are_large_enough_on_mobile() {
     assert!(
         css_rule_contains(
             ".cell .tile-letter",
-            "font-size: clamp(0.72rem, 2.2vw, 1.05rem);"
+            "font-size: clamp(0.78rem, 2.35vw, 1.12rem);"
         ) && css_rule_contains(
             ".premium-label",
-            "font-size: clamp(0.48rem, 1.45vw, 0.68rem);"
+            "font-size: clamp(0.44rem, 1.3vw, 0.62rem);"
         ) && css_rule_contains(".premium-label", "letter-spacing: 0;")
-            && APP_CSS.contains(".premium-label {\n    font-size: clamp(0.5rem, 2.4vw, 0.68rem);"),
+            && APP_CSS
+                .contains(".premium-label {\n    font-size: clamp(0.46rem, 2.15vw, 0.62rem);"),
         "board tile and premium-square labels should be readable without overwhelming the squares",
+    );
+    assert!(
+        APP_CSS.contains("--board-bg: #e3dece;")
+            && APP_CSS.contains("--tile: #fff1b8;")
+            && APP_CSS.contains("--tile-edge: #d2b85f;")
+            && css_rule_contains(".cell", "border-radius: 2px;"),
+        "tile bodies should contrast against the board and use tighter square rounding",
     );
 }
 
@@ -240,11 +248,22 @@ fn last_play_highlight_sits_outside_tile_content() {
 #[test]
 fn mobile_game_controls_are_compact_and_score_is_separate() {
     assert!(
-        GAME_JS.contains("            Play\n")
-            && GAME_JS.contains("            Swap\n")
+        GAME_JS.contains("Play ${pendingScore != null ? pendingScore : \"\"}")
+            && GAME_JS.contains("}, \"Clear\")")
+            && GAME_JS.contains("}, \"Swap\")")
+            && GAME_JS.contains("}, \"Next\")")
             && !GAME_JS.contains("Play word")
-            && !GAME_JS.contains("Exchange…"),
-        "mobile controls should use compact labels and keep score out of the Play button",
+            && !GAME_JS.contains("Exchange…")
+            && !GAME_JS.contains("Confirm exchange"),
+        "mobile controls should use state-specific compact labels",
+    );
+    assert!(
+        GAME_JS.contains("function goToNextGame({ activeOnly = false } = {})")
+            && GAME_JS.contains("fetch(\"/api/my-games\")")
+            && GAME_JS.contains("g.status !== \"finished\"")
+            && GAME_JS.contains("window.location.href = `/games/${candidates[0].id}`")
+            && GAME_JS.contains("window.confirm(\"Pass your turn?\")"),
+        "controls should support next-game navigation and confirm pass",
     );
     assert!(
         GAME_JS.contains("header-pending-score")

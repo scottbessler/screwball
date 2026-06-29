@@ -1993,8 +1993,44 @@ function App({ gameId, initial }) {
     postMove({ kind: "exchange", tiles });
   }
 
-  const controlsDisabled = !yourTurn || busy;
+  async function goToNextGame({ activeOnly = false } = {}) {
+    try {
+      const res = await fetch("/api/my-games");
+      if (!res.ok) {
+        setError("Could not load your games.");
+        return;
+      }
+      const games = await res.json();
+      const others = games.filter((g) => g.id !== gameId);
+      const active = others.filter((g) => g.status !== "finished");
+      const candidates = activeOnly ? active : (active.length ? active : others);
+      if (!candidates.length) {
+        setError(activeOnly ? "No active games to go to." : "No other games to go to.");
+        return;
+      }
+      window.location.href = `/games/${candidates[0].id}`;
+    } catch {
+      setError("Network error — try again.");
+    }
+  }
+
+  function clearPendingTiles() {
+    setPending([]);
+    setCursor(null);
+    setSelected(null);
+  }
+
+  function swapAction() {
+    if (mode === "exchange") {
+      submitExchange();
+      return;
+    }
+    clearPendingTiles();
+    setMode("exchange");
+  }
+
   const finished = game.status === "Finished";
+  const hasPendingTiles = pending.length > 0;
   const recallByRackId = (rackId) => recallTile({ rackId });
   const hintsUnlimited = game.hints_unlimited;
   const johnLetter = hoverLetter ||
@@ -2039,89 +2075,97 @@ function App({ gameId, initial }) {
     />`,
     !seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null,
   ]);
-  const controls = h(
-    "div",
-    { class: "controls" },
-    mode === "place"
-      ? html`<button type="button"
-            class="button"
-            disabled=${controlsDisabled}
-            onClick=${submitPlay}
-          >
-            Play
-          </button>
-          <button
-            type="button"
-            class="button ghost"
-            disabled=${busy || !pending.length}
-            onClick=${() => {
-              setPending([]);
-              setCursor(null);
-            }}
-          >
-            Recall
-          </button>
-          <button
-            type="button"
-            class="button ghost"
-            disabled=${busy}
-            onClick=${shuffleRack}
-          >
-            Shuffle
-          </button>
-          <button
-            type="button"
-            class="button ghost"
-            disabled=${controlsDisabled}
-            onClick=${() => {
-              reset();
-              setMode("exchange");
-            }}
-          >
-            Swap
-          </button>
-          <button
-            type="button"
-            class="button ghost"
-            disabled=${controlsDisabled}
-            onClick=${() => postMove({ kind: "pass" })}
-          >
-            Pass
-          </button>`
-      : html`<button type="button"
-            class="button"
-            disabled=${controlsDisabled}
-            onClick=${submitExchange}
-          >
-            Confirm exchange
-          </button>
-          <button
-            type="button"
-            class="button ghost"
-            disabled=${busy}
-            onClick=${reset}
-          >
-            Cancel
-          </button>`,
-  );
-  const rackArea = seated && !finished
+  let controlButtons = [];
+  if (finished) {
+    controlButtons = [
+      h("button", {
+        type: "button",
+        class: "button",
+        disabled: busy,
+        onClick: () => goToNextGame({ activeOnly: true }),
+      }, "Next"),
+    ];
+  } else if (!yourTurn) {
+    controlButtons = [
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: shuffleRack,
+      }, "Shuffle"),
+      h("button", {
+        type: "button",
+        class: "button",
+        disabled: busy,
+        onClick: () => goToNextGame(),
+      }, "Next"),
+    ];
+  } else if (hasPendingTiles) {
+    controlButtons = [
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: clearPendingTiles,
+      }, "Clear"),
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: swapAction,
+      }, "Swap"),
+      h("button", {
+        type: "button",
+        class: "button",
+        disabled: busy,
+        onClick: submitPlay,
+      }, `Play ${pendingScore != null ? pendingScore : ""}`.trim()),
+    ];
+  } else {
+    controlButtons = [
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: shuffleRack,
+      }, "Shuffle"),
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy,
+        onClick: swapAction,
+      }, "Swap"),
+      h("button", {
+        type: "button",
+        class: "button ghost",
+        disabled: busy || mode === "exchange",
+        onClick: () => {
+          if (window.confirm("Pass your turn?")) postMove({ kind: "pass" });
+        },
+      }, "Pass"),
+    ];
+  }
+  const controls = h("div", { class: "controls" }, controlButtons);
+  const rackArea = seated
     ? h("div", { class: "rack-area" }, [
-        html`<${Rack}
-          tiles=${rack}
-          selected=${selected}
-          mode=${mode}
-          exchange=${exchange}
-          onSelect=${selectTile}
-          onReorder=${reorderRack}
-          onPlaceOnBoard=${placeTileOnBoard}
-          onRecallPending=${recallByRackId}
-          onBackspace=${backspace}
-          showBackspace=${mode === "place" && pending.length > 0}
-          onHover=${game.john_mode ? setHoverLetter : null}
-        />`,
+        !finished
+          ? html`<${Rack}
+              tiles=${rack}
+              selected=${selected}
+              mode=${mode}
+              exchange=${exchange}
+              onSelect=${selectTile}
+              onReorder=${reorderRack}
+              onPlaceOnBoard=${placeTileOnBoard}
+              onRecallPending=${recallByRackId}
+              onBackspace=${backspace}
+              showBackspace=${mode === "place" && pending.length > 0}
+              onHover=${game.john_mode ? setHoverLetter : null}
+            />`
+          : null,
         error ? html`<p class="move-error">${error}</p>` : null,
         controls,
-        game.hints_allowed > 0 || hintsUnlimited
+        !finished && (game.hints_allowed > 0 || hintsUnlimited)
           ? html`<div>
               <button type="button" class="hint-btn"
                 disabled=${!yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0)}
@@ -2131,7 +2175,7 @@ function App({ gameId, initial }) {
               ${hintResult ? html`<p class="hint-result">${hintResult}</p>` : null}
             </div>`
           : null,
-        game.john_mode
+        !finished && game.john_mode
           ? h(
               "div",
               {
