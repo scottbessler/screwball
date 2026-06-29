@@ -1063,7 +1063,6 @@ section.card + section.card {
   list-style: none;
   padding: 0;
   margin: 0 0 1rem;
-  counter-reset: rank;
 }
 
 .results-list li {
@@ -1075,9 +1074,7 @@ section.card + section.card {
   border-bottom: 1px solid var(--line);
 }
 
-.results-list li::before {
-  counter-increment: rank;
-  content: counter(rank) ".";
+.results-list .results-rank {
   margin-right: 0.5rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;

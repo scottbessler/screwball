@@ -1217,27 +1217,36 @@ function Results({ game }) {
     else ranked.splice(insertAt, 0, seat);
   }
   const winners = new Set(game.winners);
+  let place = 0;
+  let prevScore = null;
   return h("div", { class: "results card" }, [
     html`<h2>Game over</h2>`,
     h(
       "ol",
       { class: "results-list" },
-      ranked.map((seat) =>
-        h(
+      ranked.map((seat, i) => {
+        // Standard competition ranking: tied seats share a place (1, 1, 3),
+        // so a tie for first doesn't read as "1st" and "2nd".
+        if (seat.score !== prevScore) {
+          place = i + 1;
+          prevScore = seat.score;
+        }
+        return h(
           "li",
           {
             key: seat.index,
             class: winners.has(seat.index) ? "winner" : "",
           },
           [
+            h("span", { class: "results-rank" }, `${place}.`),
             h("span", { class: "results-name" }, [
               seat.name,
               winners.has(seat.index) ? html`<span class="badge">winner</span>` : null,
             ]),
             h("span", { class: "results-score" }, seat.score),
           ],
-        ),
-      ),
+        );
+      }),
     ),
     html`<a class="button" href="/">New game</a>`,
   ]);
