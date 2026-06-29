@@ -101,13 +101,13 @@ fn board_labels_are_large_enough_on_mobile() {
     assert!(
         css_rule_contains(
             ".cell .tile-letter",
-            "font-size: clamp(0.85rem, 2.8vw, 1.35rem);"
+            "font-size: clamp(0.72rem, 2.2vw, 1.05rem);"
         ) && css_rule_contains(
             ".premium-label",
-            "font-size: clamp(0.55rem, 1.8vw, 0.82rem);"
+            "font-size: clamp(0.48rem, 1.45vw, 0.68rem);"
         ) && css_rule_contains(".premium-label", "letter-spacing: 0;")
-            && APP_CSS.contains(".premium-label {\n    font-size: clamp(0.62rem, 3vw, 0.78rem);"),
-        "board tile and premium-square labels should be readable on mobile",
+            && APP_CSS.contains(".premium-label {\n    font-size: clamp(0.5rem, 2.4vw, 0.68rem);"),
+        "board tile and premium-square labels should be readable without overwhelming the squares",
     );
 }
 
@@ -213,6 +213,27 @@ fn board_drag_preview_shows_exact_landing_tile() {
                 "content: attr(data-drop-points);"
             ),
         "mouse and touch drag previews should share the board ghost tile styling",
+    );
+}
+
+#[test]
+fn last_play_highlight_sits_outside_tile_content() {
+    assert!(
+        GAME_JS.contains("const cls = lastPlay ? \"cell tile last-play\" : \"cell tile\"")
+            && !GAME_JS.contains("lastPlay=${lp}")
+            && !APP_CSS.contains(".cell .tile-face.last-play"),
+        "last-play class should be on the board cell, not inside the tile face",
+    );
+    assert!(
+        css_rule_contains(".cell.tile.last-play", "overflow: visible;")
+            && css_rule_contains(".cell.tile.last-play::after", "inset: -3px;")
+            && css_rule_contains(
+                ".cell.tile.last-play::after",
+                "border: 2px solid var(--accent);"
+            )
+            && css_rule_contains(".cell.tile.last-play::after", "border-radius: 5px;")
+            && css_rule_contains(".cell.tile.last-play::after", "pointer-events: none;"),
+        "last-play highlight should render as an outside ring matching the tile radius",
     );
 }
 

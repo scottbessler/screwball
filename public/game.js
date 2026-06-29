@@ -172,8 +172,8 @@ function rackSignature(game) {
 }
 
 // A board tile rendered for a committed letter or a pending placement.
-function Tile({ letter, isBlank, points, pending, lastPlay, onClick }) {
-  const cls = ["tile-face", isBlank ? "tile-blank" : "", pending ? "pending" : "", lastPlay || ""]
+function Tile({ letter, isBlank, points, pending, onClick }) {
+  const cls = ["tile-face", isBlank ? "tile-blank" : "", pending ? "pending" : ""]
     .filter(Boolean)
     .join(" ");
   return html`<span class=${cls} onClick=${onClick}>
@@ -195,13 +195,12 @@ function Cell({
   onDrop,
 }) {
   if (square.letter) {
-    const lp = lastPlay ? "last-play" : "";
-    return html`<div class="cell tile" data-row=${row} data-col=${col}>
+    const cls = lastPlay ? "cell tile last-play" : "cell tile";
+    return html`<div class=${cls} data-row=${row} data-col=${col}>
       <${Tile}
         letter=${square.letter}
         isBlank=${square.is_blank}
         points=${pointsFor(square.letter, square.is_blank)}
-        lastPlay=${lp}
       />
     </div>`;
   }
