@@ -2233,7 +2233,7 @@ function App({ gameId, initial }) {
   const blankPicker = blankPrompt
     ? html`<${BlankPicker}
         onPick=${(letter) => {
-          setPending([
+          const next = [
             ...pending,
             {
               row: blankPrompt.row,
@@ -2242,9 +2242,20 @@ function App({ gameId, initial }) {
               isBlank: true,
               rackId: blankPrompt.rackId,
             },
-          ]);
+          ];
+          setPending(next);
           setBlankPrompt(null);
           setSelected(null);
+          // Advance the typing cursor just like a non-blank tap-place, so the
+          // tap-to-build rhythm isn't broken when a blank is involved.
+          if (cursor) {
+            const after =
+              cursor.dir === "down"
+                ? { r: blankPrompt.row + 1, c: blankPrompt.col }
+                : { r: blankPrompt.row, c: blankPrompt.col + 1 };
+            const advanced = firstEmptyFrom(after.r, after.c, cursor.dir, next);
+            setCursor(advanced ? { ...advanced, dir: cursor.dir } : cursor);
+          }
         }}
         onCancel=${() => setBlankPrompt(null)}
       />`
