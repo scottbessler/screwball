@@ -150,11 +150,12 @@ fn john_mode_hint_is_stable_while_crossing_rack_gaps() {
         "John Mode tooltip should toggle below the rack without reflowing the page or covering the board",
     );
     assert!(
-        GAME_JS.contains("class: \"john-tooltip-body\"")
-            && css_rule_contains(".john-tooltip-body", "max-height: 4.1rem;")
-            && css_rule_contains(".john-tooltip-body", "overflow-y: auto;")
-            && !css_rule_contains(".john-tooltip", "overflow-y: auto;"),
-        "John Mode tooltip body should scroll inside the padded shell so bottom padding remains visible",
+        !GAME_JS.contains("john-tooltip-body")
+            && !APP_CSS.contains(".john-tooltip-body")
+            && !css_rule_contains(".john-tooltip", "max-height:")
+            && !css_rule_contains(".john-tooltip", "overflow-y: auto;")
+            && css_rule_contains(".john-tooltip", "overflow: visible;"),
+        "John Mode tooltip should grow to fit all words instead of clipping inside a max-height scroller",
     );
     assert!(
         css_rule_contains(".john-hint", "flex-wrap: wrap;")
@@ -178,6 +179,39 @@ fn john_mode_hint_is_stable_while_crossing_rack_gaps() {
             && GAME_JS.contains("(!grandpaMode || GRANDPA_TWO_LETTER_WORDS.has(w))")
             && GAME_JS.contains("grandpaMode=${game.grandpa_mode}"),
         "John Mode helper should honor Grandpa Mode's 2-letter allowlist",
+    );
+}
+
+#[test]
+fn board_drag_preview_shows_exact_landing_tile() {
+    assert!(
+        GAME_JS.contains("function showBoardDropGhost(cell, preview = activeDragPreview)")
+            && GAME_JS.contains("cell.classList.add(\"drag-over\", \"board-drop-ghost\");")
+            && GAME_JS.contains("cell.dataset.dropLetter = preview.letter;")
+            && GAME_JS.contains("cell.dataset.dropPoints = preview.points;"),
+        "board drag should render a visible ghost tile in the candidate destination cell",
+    );
+    assert!(
+        GAME_JS.contains("currentBoardCell: null")
+            && GAME_JS.contains("pd.currentBoardCell = cell;")
+            && GAME_JS.contains("touchState.current.currentBoardCell = dropTarget.cell;")
+            && GAME_JS.contains("const previewCell = pd.currentBoardCell;")
+            && GAME_JS.contains("const boardCell = state.currentBoardCell ||"),
+        "touch drop should commit to the currently previewed board cell when one is visible",
+    );
+    assert!(
+        GAME_JS.contains("setActiveDragPreview(")
+            && GAME_JS.contains("clearActiveDragPreview()")
+            && css_rule_contains(".cell.board-drop-ghost", "opacity: 1;")
+            && css_rule_contains(
+                ".cell.board-drop-ghost::before",
+                "content: attr(data-drop-letter);"
+            )
+            && css_rule_contains(
+                ".cell.board-drop-ghost::after",
+                "content: attr(data-drop-points);"
+            ),
+        "mouse and touch drag previews should share the board ghost tile styling",
     );
 }
 

@@ -66,6 +66,39 @@ function clearRackInsertionMarkers(root = document) {
   }
 }
 
+let activeDragPreview = null;
+
+function setActiveDragPreview(letter, points, isBlank = false) {
+  activeDragPreview = {
+    letter: letter || "",
+    points: String(points ?? ""),
+    isBlank: Boolean(isBlank),
+  };
+}
+
+function clearActiveDragPreview() {
+  activeDragPreview = null;
+  clearBoardDropGhost();
+}
+
+function clearBoardDropGhost() {
+  for (const el of document.querySelectorAll(".board-drop-ghost,.cell.drag-over")) {
+    el.classList.remove("board-drop-ghost", "drag-over");
+    delete el.dataset.dropLetter;
+    delete el.dataset.dropPoints;
+    delete el.dataset.dropBlank;
+  }
+}
+
+function showBoardDropGhost(cell, preview = activeDragPreview) {
+  clearBoardDropGhost();
+  if (!cell || !preview) return;
+  cell.classList.add("drag-over", "board-drop-ghost");
+  cell.dataset.dropLetter = preview.letter;
+  cell.dataset.dropPoints = preview.points;
+  cell.dataset.dropBlank = preview.isBlank ? "true" : "false";
+}
+
 // Live score of the pending placements. Mirrors score logic in src/game.rs
 // (main run + cross words + 50 bingo). No dict check — server validates words.
 function previewScore(game, pending) {
@@ -149,7 +182,18 @@ function Tile({ letter, isBlank, points, pending, lastPlay, onClick }) {
   </span>`;
 }
 
-function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver, onDrop }) {
+function Cell({
+  square,
+  pending,
+  row,
+  col,
+  cursor,
+  lastPlay,
+  onClick,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}) {
   if (square.letter) {
     const lp = lastPlay ? "last-play" : "";
     return html`<div class="cell tile" data-row=${row} data-col=${col}>
@@ -168,10 +212,18 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
       data-rackid=${pending.rackId}
       draggable=${true}
       onDragStart=${(e) => {
+        setActiveDragPreview(
+          pending.letter,
+          pointsFor(pending.letter, pending.isBlank),
+          pending.isBlank,
+        );
         e.dataTransfer.setData("text/plain", "pending:" + pending.rackId);
         e.dataTransfer.effectAllowed = "move";
       }}
-      onDragEnd=${() => setRackRecallActive(false)}
+      onDragEnd=${() => {
+        setRackRecallActive(false);
+        clearActiveDragPreview();
+      }}
       onClick=${onClick}
     >
       <${Tile}
@@ -193,7 +245,7 @@ function Cell({ square, pending, row, col, cursor, lastPlay, onClick, onDragOver
     .join(" ");
   const star = row === CENTER && col === CENTER ? "★" : PREMIUM_LABEL[premium];
   return html`<div class=${cls} data-row=${row} data-col=${col} onClick=${onClick}
-    onDragOver=${onDragOver} onDrop=${onDrop}>
+    onDragOver=${onDragOver} onDragLeave=${onDragLeave} onDrop=${onDrop}>
     ${isCursor
       ? html`<span class="cursor-arrow">${cursor.dir === "down" ? "↓" : "→"}</span>`
       : html`<span class="premium-label">${star}</span>`}
@@ -232,16 +284,21 @@ function Board({
     if (e.touches.length === 1) {
       const tileEl = e.target.closest(".pending-cell[data-rackid]");
       if (tileEl) {
+        const rackId = Number(tileEl.dataset.rackid);
+        const dragPending = pending.find((p) => p.rackId === rackId);
         const letterEl = tileEl.querySelector(".tile-letter");
         pendingDrag.current = {
-          rackId: Number(tileEl.dataset.rackid),
+          rackId,
           startX: e.touches[0].clientX,
           startY: e.touches[0].clientY,
           dragging: false,
           ghost: null,
           boardDropLiftY: 0,
-          letter: letterEl ? letterEl.textContent : "",
+          letter: dragPending ? dragPending.letter : (letterEl ? letterEl.textContent : ""),
+          points: dragPending ? pointsFor(dragPending.letter, dragPending.isBlank) : "",
+          isBlank: dragPending ? dragPending.isBlank : false,
           highlightedCell: null,
+          currentBoardCell: null,
         };
         return;
       }
@@ -294,7 +351,7 @@ function Board({
           positionDragGhost(pd.ghost, touch.clientX, touch.clientY);
         }
         if (pd.highlightedCell) {
-          pd.highlightedCell.classList.remove("drag-over");
+          clearBoardDropGhost();
           pd.highlightedCell = null;
         }
         const target = boardDropPoint(touch, pd.boardDropLiftY);
@@ -302,11 +359,23 @@ function Board({
           isPointOverRack(touch.clientX, touch.clientY) ||
           isPointOverRack(target.x, target.y);
         setRackRecallActive(overRack);
-        if (overRack) return;
+        if (overRack) {
+          pd.currentBoardCell = null;
+          clearBoardDropGhost();
+          return;
+        }
         const cell = cellAtPoint(target.x, target.y);
         if (cell) {
-          cell.classList.add("drag-over");
+          showBoardDropGhost(cell, {
+            letter: pd.letter,
+            points: String(pd.points),
+            isBlank: pd.isBlank,
+          });
           pd.highlightedCell = cell;
+          pd.currentBoardCell = cell;
+        } else {
+          pd.currentBoardCell = null;
+          clearBoardDropGhost();
         }
       }
       return;
@@ -337,8 +406,9 @@ function Board({
   function handleBoardTouchEnd(e) {
     if (pendingDrag.current) {
       const pd = pendingDrag.current;
+      const previewCell = pd.currentBoardCell;
       if (pd.ghost) pd.ghost.remove();
-      if (pd.highlightedCell) pd.highlightedCell.classList.remove("drag-over");
+      if (pd.highlightedCell) clearBoardDropGhost();
       setRackRecallActive(false);
       if (pd.dragging) {
         const lastTouch = e.changedTouches[0];
@@ -350,7 +420,7 @@ function Board({
         ) {
           onRecallPending(pd.rackId);
         } else {
-          const cell = cellAtPoint(target.x, target.y);
+          const cell = previewCell || cellAtPoint(target.x, target.y);
           if (cell && onMovePending) {
             onMovePending(pd.rackId, Number(cell.dataset.row), Number(cell.dataset.col));
           }
@@ -379,7 +449,7 @@ function Board({
     if (pendingDrag.current) {
       if (pendingDrag.current.ghost) pendingDrag.current.ghost.remove();
       if (pendingDrag.current.highlightedCell) {
-        pendingDrag.current.highlightedCell.classList.remove("drag-over");
+        clearBoardDropGhost();
       }
       pendingDrag.current = null;
     }
@@ -438,9 +508,16 @@ function Board({
           lastPlay=${lastPlaySet && lastPlaySet.has(i)}
           onClick=${() =>
             place ? onPendingClick(place) : onCellClick(row, col)}
-          onDragOver=${isEmpty ? (e) => e.preventDefault() : null}
+          onDragOver=${isEmpty ? (e) => {
+            e.preventDefault();
+            showBoardDropGhost(e.currentTarget);
+          } : null}
+          onDragLeave=${isEmpty ? (e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) clearBoardDropGhost();
+          } : null}
           onDrop=${isEmpty ? (e) => {
             e.preventDefault();
+            clearActiveDragPreview();
             const data = e.dataTransfer.getData("text/plain");
             if (data.startsWith("pending:")) {
               if (onMovePending) onMovePending(Number(data.slice(8)), row, col);
@@ -453,8 +530,17 @@ function Board({
     }
   }
   return html`<div class="board" role="grid" ref=${boardRef}
-    onDragOver=${() => clearRackInsertionMarkers()}
-    onDrop=${() => clearRackInsertionMarkers()}
+    onDragOver=${(e) => {
+      clearRackInsertionMarkers();
+      if (!e.target.closest?.(".cell:not(.tile)")) clearBoardDropGhost();
+    }}
+    onDragLeave=${(e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) clearBoardDropGhost();
+    }}
+    onDrop=${() => {
+      clearRackInsertionMarkers();
+      clearBoardDropGhost();
+    }}
     onTouchStart=${(e) => { handleDoubleTap(e); handleBoardTouchStart(e); }}
     onTouchMove=${handleBoardTouchMove}
     onTouchEnd=${handleBoardTouchEnd}
@@ -665,6 +751,7 @@ function Rack({
     const target = desktopRackTarget(e);
     dragRackTarget.current = target;
     if (target) {
+      clearBoardDropGhost();
       showRackInsertionMarker(target);
     } else {
       clearRackInsertionMarker();
@@ -677,6 +764,7 @@ function Rack({
       dragSourceEl.current.classList.remove("dragging");
     }
     clearRackInsertionMarker();
+    clearActiveDragPreview();
     dragId.current = null;
     dragSourceEl.current = null;
     dragRackTarget.current = null;
@@ -697,6 +785,7 @@ function Rack({
   function handleRackDragOver(e) {
     if (dragId.current !== null) return;
     e.preventDefault();
+    clearBoardDropGhost();
     clearRackInsertionMarker();
     e.currentTarget.classList.add("rack-recall-over");
     if (e.dataTransfer) {
@@ -746,7 +835,11 @@ function Rack({
       ghost: null,
       boardDropLiftY: 0,
       currentRackTarget: null,
+      currentBoardCell: null,
       sourceEl: e.currentTarget,
+      letter: tile.is_blank ? "" : tile.letter,
+      points: pointsFor(tile.letter, tile.is_blank),
+      isBlank: tile.is_blank,
     };
   }
 
@@ -775,19 +868,29 @@ function Rack({
       }
       // Clear previous highlight
       if (touchState.current.highlightedCell) {
-        touchState.current.highlightedCell.classList.remove("drag-over");
+        clearBoardDropGhost();
         touchState.current.highlightedCell = null;
       }
       const dropTarget = touchDropTarget(touch, touchState.current);
       if (dropTarget.kind === "rack") {
         touchState.current.currentRackTarget = dropTarget.target;
+        touchState.current.currentBoardCell = null;
+        clearBoardDropGhost();
         showRackInsertionMarker(dropTarget.target);
       } else {
         touchState.current.currentRackTarget = null;
         clearRackInsertionMarker();
         if (dropTarget.kind === "board" && dropTarget.cell) {
-          dropTarget.cell.classList.add("drag-over");
+          showBoardDropGhost(dropTarget.cell, {
+            letter: touchState.current.letter,
+            points: String(touchState.current.points),
+            isBlank: touchState.current.isBlank,
+          });
           touchState.current.highlightedCell = dropTarget.cell;
+          touchState.current.currentBoardCell = dropTarget.cell;
+        } else {
+          touchState.current.currentBoardCell = null;
+          clearBoardDropGhost();
         }
       }
     }
@@ -802,7 +905,7 @@ function Rack({
     }
     clearRackInsertionMarker();
     if (state.highlightedCell) {
-      state.highlightedCell.classList.remove("drag-over");
+      clearBoardDropGhost();
     }
   }
 
@@ -819,9 +922,11 @@ function Rack({
           onReorder(state.originalId, rackTarget);
         } else {
           const dropTarget = touchDropTarget(lastTouch, state);
-          if (dropTarget.kind === "board" && dropTarget.cell) {
-            const row = Number(dropTarget.cell.dataset.row);
-            const col = Number(dropTarget.cell.dataset.col);
+          const boardCell = state.currentBoardCell ||
+            (dropTarget.kind === "board" ? dropTarget.cell : null);
+          if (boardCell) {
+            const row = Number(boardCell.dataset.row);
+            const col = Number(boardCell.dataset.col);
             const tile = tiles.find((t) => t.id === state.originalId);
             if (tile && onPlaceOnBoard) {
               onPlaceOnBoard(tile, row, col);
@@ -925,6 +1030,11 @@ function Rack({
           dragSourceEl.current = e.currentTarget;
           dragRackTarget.current = null;
           e.currentTarget.classList.add("dragging");
+          setActiveDragPreview(
+            tile.is_blank ? "" : tile.letter,
+            pointsFor(tile.letter, tile.is_blank),
+            tile.is_blank,
+          );
           e.dataTransfer.setData("text/plain", String(tile.id));
           e.dataTransfer.effectAllowed = "move";
         }}

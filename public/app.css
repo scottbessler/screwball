@@ -500,6 +500,50 @@ section.card + section.card {
 .game .cell:not(.tile) { cursor: pointer; }
 .cell.drag-over { background: var(--accent); opacity: 0.4; }
 
+.cell.board-drop-ghost {
+  background: var(--board-bg);
+  opacity: 1;
+}
+
+.cell.board-drop-ghost .premium-label {
+  opacity: 0;
+}
+
+.cell.board-drop-ghost::before {
+  content: attr(data-drop-letter);
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff7d6;
+  border: 1px solid var(--tile-edge);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px var(--accent), 0 2px 8px rgba(31, 41, 51, 0.14);
+  color: var(--ink);
+  font-size: clamp(0.85rem, 2.8vw, 1.35rem);
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.cell.board-drop-ghost[data-drop-blank="true"]::before {
+  color: var(--accent);
+}
+
+.cell.board-drop-ghost::after {
+  content: attr(data-drop-points);
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  z-index: 2;
+  color: var(--ink);
+  font-size: clamp(0.38rem, 1vw, 0.55rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
 @keyframes tile-pop {
   0% { transform: scale(0.85); }
   50% { transform: scale(1.08); }
