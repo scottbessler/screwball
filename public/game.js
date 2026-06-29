@@ -1769,11 +1769,11 @@ function App({ gameId, initial }) {
       return;
     }
     if (cursor && row === cursor.row && col === cursor.col + 1) {
-      setCursor({ ...cursor, dir: "right" });
+      setCursor({ row, col, dir: "right" });
       return;
     }
     if (cursor && col === cursor.col && row === cursor.row + 1) {
-      setCursor({ ...cursor, dir: "down" });
+      setCursor({ row, col, dir: "down" });
       return;
     }
     setCursor({ row, col, dir: "right" });
