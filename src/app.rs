@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc, time::Instant};
 
 use anyhow::{Context, Result};
 use axum::{
@@ -69,8 +69,30 @@ pub fn router(state: AppState) -> Router {
         .route("/api/define/{word}", get(routes::define))
         .nest_service("/public", ServeDir::new("public"))
         .layer(from_fn(cache_control))
+        .layer(from_fn(log_request))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// Log every request's method, path, status, and wall-clock duration so prod
+/// latency spikes are visible. Static assets and the health check are skipped to
+/// keep the log readable; anything slow is bumped to a warning.
+async fn log_request(request: Request, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+    let start = Instant::now();
+    let response = next.run(request).await;
+    let elapsed_ms = start.elapsed().as_millis();
+    let status = response.status().as_u16();
+    if path.starts_with("/public/") || path == "/healthcheck" {
+        return response;
+    }
+    if elapsed_ms >= 500 {
+        tracing::warn!(%method, path, status, elapsed_ms, "slow request");
+    } else {
+        tracing::info!(%method, path, status, elapsed_ms, "request");
+    }
+    response
 }
 
 /// Cache policy: release `/public` asset URLs (`?v=hash`) are content-addressed
@@ -92,7 +114,12 @@ async fn cache_control(request: Request, next: Next) -> Response {
 
 pub async fn run() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            // Default to info so request-duration logs show up in prod even when
+            // RUST_LOG is unset.
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
 
     crate::render::set_asset_version(asset_version());
