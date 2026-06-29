@@ -707,18 +707,6 @@ function Rack({
     return bestId == null ? null : { id: bestId, side: bestSide };
   }
 
-  function tileInsertionTarget(tileId, x) {
-    const rack = rackRef.current;
-    if (!rack) return { id: tileId, side: "before" };
-    const el = rack.querySelector(`.rack-tile[data-tile-id="${tileId}"]`);
-    if (!el) return { id: tileId, side: "before" };
-    const rect = el.getBoundingClientRect();
-    return {
-      id: tileId,
-      side: x < rect.left + rect.width / 2 ? "before" : "after",
-    };
-  }
-
   function clearRackInsertionMarker() {
     const rack = rackRef.current;
     if (!rack) return;
@@ -1066,12 +1054,10 @@ function Rack({
             return;
           }
           e.preventDefault();
-          if (dragId.current !== null && dragId.current !== tile.id) {
-            const target = tileInsertionTarget(tile.id, e.clientX);
-            if (shouldReorderToward(dragId.current, target)) {
-              onReorder(dragId.current, target);
-            }
-          }
+          // Commit the previewed target (what the insertion bar showed) rather
+          // than recomputing relative to the dropped-on tile, so the tile lands
+          // exactly where the marker indicated (WYSIWYG).
+          commitDesktopRackTarget();
           finishDesktopDrag();
         }}
         onDragEnd=${handleDesktopDragEnd}
