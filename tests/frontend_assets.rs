@@ -2,6 +2,7 @@ const GAME_JS: &str = include_str!("../public/game.js");
 const APP_CSS: &str = include_str!("../public/app.css");
 const SW_JS: &str = include_str!("../public/sw.js");
 const NOTIFICATION_DEBUG_JS: &str = include_str!("../public/notification-debug.js");
+const TOUCH_DEBUG_JS: &str = include_str!("../public/touch-debug.js");
 
 #[test]
 fn htm_native_tags_do_not_split_immediately_after_tag_name() {
@@ -67,9 +68,28 @@ fn app_layout_wrappers_use_plain_native_divs() {
     );
     assert!(
         GAME_JS.contains("h(\"div\", { class: \"game-layout\" }, [")
+            && GAME_JS.contains("h(\"div\", { class: \"play-column\" }, [")
             && GAME_JS.contains("h(\"div\", { class: \"board-wrap\" }, [")
             && GAME_JS.contains("h(\"div\", { class: \"rack-area\" }, ["),
         "layout wrappers should be explicit h() divs instead of top-level htm div templates",
+    );
+}
+
+#[test]
+fn game_script_avoids_webkit_fragile_results_syntax() {
+    assert!(
+        !GAME_JS.contains("toSorted("),
+        "game script should avoid toSorted because older WebKit builds fail at runtime",
+    );
+    assert!(
+        !GAME_JS.contains("html`<li key=${seat.index}"),
+        "finished-game results should avoid multiline htm attributes around seat.index",
+    );
+    assert!(
+        GAME_JS.contains("key: seat.index")
+            && GAME_JS.contains("const ranked = [];")
+            && GAME_JS.contains("ranked.splice(insertAt, 0, seat);"),
+        "results rendering should use explicit h() markup and broadly supported ranking",
     );
 }
 
@@ -83,7 +103,7 @@ fn rack_recall_and_tile_text_styles_are_present() {
         "rack should visibly advertise itself as the pending-tile recall target",
     );
     assert!(
-        css_rule_contains(".rack-tile", "color: var(--ink);"),
+        css_rule_contains(".rack-tile", "color: var(--tile-ink);"),
         "rack tile buttons should override mobile default button/link text color",
     );
     assert!(
@@ -135,7 +155,7 @@ fn john_mode_hint_is_stable_while_crossing_rack_gaps() {
     );
     for declaration in [
         "position: absolute;",
-        "top: calc(100% + 0.35rem);",
+        "top: calc(3rem + 0.35rem);",
         "opacity: 0;",
         "transform: translateY(-0.3rem);",
         "padding: 0.45rem 0.55rem 0.65rem;",
@@ -225,6 +245,35 @@ fn board_drag_preview_shows_exact_landing_tile() {
 }
 
 #[test]
+fn mobile_touch_drop_target_is_separate_from_dragged_tile() {
+    assert!(
+        GAME_JS.contains("function boardDropLiftPx()")
+            && GAME_JS.contains("return dragGhostLiftPx() * 0.4;")
+            && GAME_JS.matches("boardDropLiftPx()").count() >= 3,
+        "mobile touch drop target should sit 60% closer to the finger than the lifted tile ghost",
+    );
+    assert!(
+        TOUCH_DEBUG_JS.contains("dropX")
+            && TOUCH_DEBUG_JS.contains("dropY")
+            && TOUCH_DEBUG_JS.contains("tileX")
+            && TOUCH_DEBUG_JS.contains("tileY")
+            && TOUCH_DEBUG_JS.contains("Math.round(-lift * 0.4)")
+            && TOUCH_DEBUG_JS.contains("oldTargetOffsets"),
+        "touch debug page should expose independent drop-point and dragged-tile offsets",
+    );
+    assert!(
+        css_rule_contains(
+            ".touch-debug-slider-row",
+            "grid-template-columns: 3.25rem minmax(0, 1fr) 3.25rem;",
+        ) && css_rule_contains(
+            ".rack-tile-ghost.touch-debug-ghost",
+            "translate(-50%, -50%)",
+        ) && css_rule_contains(".touch-debug-marker", "position: fixed;"),
+        "touch debug controls and markers should be usable on mobile while dragging",
+    );
+}
+
+#[test]
 fn last_play_highlight_sits_outside_tile_content() {
     assert!(
         GAME_JS.contains("const cls = lastPlay ? \"cell tile last-play\" : \"cell tile\"")
@@ -252,6 +301,7 @@ fn mobile_game_controls_are_compact_and_score_is_separate() {
             && GAME_JS.contains("}, \"Clear\")")
             && GAME_JS.contains("}, \"Swap\")")
             && GAME_JS.contains("}, \"Next\")")
+            && GAME_JS.contains("class: \"button play-button\"")
             && !GAME_JS.contains("Play word")
             && !GAME_JS.contains("Exchange…")
             && !GAME_JS.contains("Confirm exchange"),
@@ -289,8 +339,87 @@ fn mobile_game_controls_are_compact_and_score_is_separate() {
     assert!(
         css_rule_contains(".controls", "display: flex;")
             && APP_CSS.contains("flex-wrap: nowrap;")
-            && APP_CSS.contains("font-size: 0.78rem;"),
-        "mobile controls should be sized to stay on one line",
+            && APP_CSS.contains("font-size: 0.78rem;")
+            && css_rule_contains(".controls .button", "min-width: 7rem;")
+            && css_rule_contains(".controls .play-button", "min-width: 7rem;"),
+        "mobile controls should be sized to stay on one line without shifting between states",
+    );
+}
+
+#[test]
+fn desktop_game_layout_keeps_actions_near_board_without_zoom_controls() {
+    assert!(
+        !GAME_JS.contains("boardScale")
+            && !GAME_JS.contains("boardWidth")
+            && !GAME_JS.contains("board-zoom-controls")
+            && !GAME_JS.contains("board-scale-frame")
+            && !GAME_JS.contains("Increase board size")
+            && !GAME_JS.contains("Decrease board size")
+            && !APP_CSS.contains("board-zoom-controls")
+            && !APP_CSS.contains("board-scale-frame"),
+        "board resizing controls and wrappers should not be present",
+    );
+    assert!(
+        css_rule_contains(".play-column", "display: flex;")
+            && css_rule_contains(".play-column", "flex-direction: column;")
+            && css_rule_contains(".play-column", "gap: 1rem;")
+            && css_rule_contains(".board-wrap", "width: min(100%, 600px);")
+            && css_rule_contains(".rack-area", "width: min(100%, 600px);")
+            && !css_rule_contains(".sidebar", "grid-row: 1 / span 2;"),
+        "desktop rack/actions should stay directly under the board in an independent play column",
+    );
+    assert!(
+        css_rule_contains(
+            ".game-layout",
+            "grid-template-columns: minmax(min(360px, 100%), 1fr) minmax(min(200px, 100%), 1fr);"
+        ) && !APP_CSS.contains("max-width: min(1440px, calc(100vw - 2rem));"),
+        "game page should keep the original flexible board/sidebar sizing",
+    );
+}
+
+#[test]
+fn desktop_game_page_keeps_scroll_inside_game_surfaces() {
+    assert!(
+        APP_CSS.contains("@media (min-width: 481px)")
+            && css_rule_contains("body.game-page", "overflow: hidden;")
+            && css_rule_contains(".game-page .page", "height: calc(100vh - 3.1rem);")
+            && css_rule_contains(".game-page .page", "overflow: visible;")
+            && css_rule_contains(".game-page .page > .card:last-child", "overflow: visible;")
+            && css_rule_contains(".game-page .sidebar", "overflow-y: auto;"),
+        "desktop game detail pages should not grow the document scrollbar",
+    );
+    assert!(
+        css_rule_contains(".rack-area", "position: relative;")
+            && css_rule_contains(".john-tooltip", "position: absolute;")
+            && css_rule_contains(".john-tooltip", "top: calc(3rem + 0.35rem);")
+            && !css_rule_contains(".john-tooltip", "top: calc(100% + 0.35rem);"),
+        "John Mode tooltip should overlay from the rack area instead of extending page height",
+    );
+}
+
+#[test]
+fn other_games_sidebar_hides_finished_games() {
+    assert!(
+        GAME_JS.contains("data.filter((g) => g.id !== gameId && g.status !== \"finished\")")
+            && GAME_JS
+                .contains("games.filter((g) => g.id !== gameId && g.status !== \"finished\")"),
+        "the in-game other-games sidebar should not render finished games or notify for them",
+    );
+}
+
+#[test]
+fn dark_mode_uses_browser_preference_and_keeps_tiles_legible() {
+    assert!(
+        APP_CSS.contains("@media (prefers-color-scheme: dark)")
+            && APP_CSS.contains("--tile-ink: #1f2933;"),
+        "dark mode should follow the browser preference and keep a dedicated tile text color",
+    );
+    assert!(
+        css_rule_contains(".cell.tile", "color: var(--tile-ink);")
+            && css_rule_contains(".rack-tile", "color: var(--tile-ink);")
+            && css_rule_contains(".cell .tile-face.pending", "color: var(--tile-ink);")
+            && css_rule_contains(".cell.board-drop-ghost::before", "color: var(--tile-ink);"),
+        "light tile faces should not inherit the dark page text color",
     );
 }
 
@@ -400,6 +529,24 @@ fn web_push_notification_flow_is_wired() {
             && css_rule_contains(".debug-output", "white-space: pre-wrap;")
             && APP_CSS.contains(".debug-grid { grid-template-columns: 1fr; }"),
         "notification debug diagnostics should be readable on desktop and mobile",
+    );
+}
+
+#[test]
+fn touch_debug_page_asset_is_wired() {
+    assert!(
+        TOUCH_DEBUG_JS.contains("const STORAGE_KEY = \"screwball.touchDebug.offsets.v1\"")
+            && TOUCH_DEBUG_JS.contains("function proposedOffsets()")
+            && TOUCH_DEBUG_JS.contains("function updateDragVisuals")
+            && TOUCH_DEBUG_JS.contains("showBoardDropGhost"),
+        "touch debug script should persist offsets and render live drag/drop markers",
+    );
+    assert!(
+        APP_CSS.contains(".touch-debug {")
+            && APP_CSS.contains(".touch-debug-controls")
+            && APP_CSS.contains(".touch-debug-board")
+            && APP_CSS.contains(".touch-debug-rack"),
+        "touch debug page should have dedicated responsive layout and controls",
     );
 }
 

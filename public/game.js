@@ -341,7 +341,7 @@ function Board({
         ghost.textContent = pd.letter;
         positionDragGhost(ghost, touch.clientX, touch.clientY);
         document.body.appendChild(ghost);
-        pd.boardDropLiftY = dragGhostLiftPx();
+        pd.boardDropLiftY = boardDropLiftPx();
         pd.ghost = ghost;
       }
       if (pd.dragging) {
@@ -614,6 +614,10 @@ function dragGhostLiftPx() {
   return 2.4 * (Number.isFinite(fontSize) ? fontSize : 16);
 }
 
+function boardDropLiftPx() {
+  return dragGhostLiftPx() * 0.4;
+}
+
 function boardDropPoint(touch, liftY) {
   return {
     x: touch.clientX,
@@ -856,7 +860,7 @@ function Rack({
       ghost.textContent = tile ? (tile.is_blank ? " " : tile.letter) : "";
       positionDragGhost(ghost, touch.clientX, touch.clientY);
       document.body.appendChild(ghost);
-      touchState.current.boardDropLiftY = dragGhostLiftPx();
+      touchState.current.boardDropLiftY = boardDropLiftPx();
       touchState.current.ghost = ghost;
     }
     if (touchState.current.dragging) {
@@ -1207,25 +1211,37 @@ function MoveLog({ game }) {
 }
 
 function Results({ game }) {
-  const ranked = game.seats.toSorted((a, b) => b.score - a.score);
+  const ranked = [];
+  for (const seat of game.seats) {
+    const insertAt = ranked.findIndex((other) => seat.score > other.score);
+    if (insertAt === -1) ranked.push(seat);
+    else ranked.splice(insertAt, 0, seat);
+  }
   const winners = new Set(game.winners);
-  return html`<div class="results card">
-    <h2>Game over</h2>
-    <ol class="results-list">
-      ${ranked.map(
-        (seat) => html`<li key=${seat.index}
-          class=${winners.has(seat.index) ? "winner" : ""}
-        >
-          <span class="results-name">
-            ${seat.name}
-            ${winners.has(seat.index) ? html`<span class="badge">winner</span>` : null}
-          </span>
-          <span class="results-score">${seat.score}</span>
-        </li>`,
-      )}
-    </ol>
-    <a class="button" href="/">New game</a>
-  </div>`;
+  return h("div", { class: "results card" }, [
+    html`<h2>Game over</h2>`,
+    h(
+      "ol",
+      { class: "results-list" },
+      ranked.map((seat) =>
+        h(
+          "li",
+          {
+            key: seat.index,
+            class: winners.has(seat.index) ? "winner" : "",
+          },
+          [
+            h("span", { class: "results-name" }, [
+              seat.name,
+              winners.has(seat.index) ? html`<span class="badge">winner</span>` : null,
+            ]),
+            h("span", { class: "results-score" }, seat.score),
+          ],
+        ),
+      ),
+    ),
+    html`<a class="button" href="/">New game</a>`,
+  ]);
 }
 
 function BlankPicker({ onPick, onCancel }) {
@@ -1285,7 +1301,7 @@ function OtherGames({ gameId }) {
         if (!res.ok) return;
         const data = await res.json();
         if (active) {
-          const others = data.filter((g) => g.id !== gameId);
+          const others = data.filter((g) => g.id !== gameId && g.status !== "finished");
           const nowTurn = new Set(others.filter((g) => g.your_turn).map((g) => g.id));
           if (prevTurnIds.current !== null) {
             for (const g of others) {
@@ -1315,7 +1331,7 @@ function OtherGames({ gameId }) {
   }, []);
 
   if (!games) return null;
-  const others = games.filter((g) => g.id !== gameId);
+  const others = games.filter((g) => g.id !== gameId && g.status !== "finished");
   if (!others.length) return null;
   return html`<div class="other-games">
     <h2>Your other games</h2>
@@ -2116,7 +2132,7 @@ function App({ gameId, initial }) {
       }, "Swap"),
       h("button", {
         type: "button",
-        class: "button",
+        class: "button play-button",
         disabled: busy,
         onClick: submitPlay,
       }, `Play ${pendingScore != null ? pendingScore : ""}`.trim()),
@@ -2204,9 +2220,12 @@ function App({ gameId, initial }) {
     ${notificationControl}
     <${OtherGames} gameId=${gameId} />
   </aside>`;
-  const layout = h("div", { class: "game-layout" }, [
+  const playColumn = h("div", { class: "play-column" }, [
     boardWrap,
     rackArea,
+  ]);
+  const layout = h("div", { class: "game-layout" }, [
+    playColumn,
     sidebar,
   ]);
   const blankPicker = blankPrompt

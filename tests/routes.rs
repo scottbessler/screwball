@@ -297,6 +297,7 @@ async fn home_page_logged_in_shows_new_game() {
     assert!(html.contains("role=\"tooltip\""));
     assert!(html.contains("name=\"jax_mode\""));
     assert!(html.contains("href=\"/debug/notifications\""));
+    assert!(html.contains("href=\"/debug/touch\""));
     assert!(!html.contains("Open games"));
     assert!(!html.contains("href=\"/demo\""));
     assert!(!html.contains("Demo board"));
@@ -419,6 +420,26 @@ async fn notification_debug_page_requires_signin_and_exposes_tools() {
     assert!(html.contains("id=\"debug-enable\""));
     assert!(html.contains("id=\"debug-local-test\""));
     assert!(html.contains("id=\"debug-server-test\""));
+}
+
+#[tokio::test]
+async fn touch_debug_page_exposes_offset_controls() {
+    let app = test_app().await;
+    let response = app
+        .router()
+        .oneshot(get("/debug/touch", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_string(response).await;
+    assert!(html.contains("Touch debug"));
+    assert!(html.contains("/public/touch-debug.js"));
+    assert!(html.contains("id=\"touch-debug-board\""));
+    assert!(html.contains("data-offset-key=\"dropX\""));
+    assert!(html.contains("data-offset-key=\"dropY\""));
+    assert!(html.contains("data-offset-key=\"tileX\""));
+    assert!(html.contains("data-offset-key=\"tileY\""));
+    assert!(html.contains("id=\"touch-debug-preset-proposed\""));
 }
 
 #[tokio::test]

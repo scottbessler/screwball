@@ -239,6 +239,10 @@ pub async fn notification_debug_page(AuthUser(_user): AuthUser) -> Html<String> 
     Html(render::notification_debug_page())
 }
 
+pub async fn touch_debug_page() -> Html<String> {
+    Html(render::touch_debug_page())
+}
+
 #[derive(Serialize)]
 pub struct PushPublicKey {
     public_key: Option<String>,

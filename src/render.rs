@@ -165,7 +165,7 @@ pub fn home_page(
 <section class="card">
   <h1>Your games</h1>
   {list}
-  <p class="debug-link"><a href="/debug/notifications">Notification debug</a></p>
+  <p class="debug-link"><a href="/debug/notifications">Notification debug</a> | <a href="/debug/touch">Touch debug</a></p>
 </section>
 {open_games}"#
         ),
@@ -213,6 +213,81 @@ pub fn notification_debug_page() -> String {
             asset("/public/notification-debug.js")
         ),
         "",
+    )
+}
+
+pub fn touch_debug_page() -> String {
+    layout_with_head(
+        "Touch debug",
+        r#"<section class="touch-debug" aria-labelledby="touch-debug-title">
+  <div class="touch-debug-board-panel">
+    <h1 id="touch-debug-title">Touch debug</h1>
+    <p class="touch-debug-turn">Your turn</p>
+    <div id="touch-debug-board" class="board touch-debug-board" role="grid" aria-label="Debug board"></div>
+    <div id="touch-debug-rack" class="rack touch-debug-rack" aria-label="Debug rack"></div>
+  </div>
+
+  <form id="touch-debug-controls" class="touch-debug-controls">
+    <h2>Offsets</h2>
+    <fieldset>
+      <legend>Drop point</legend>
+      <div class="touch-debug-offset" data-offset-key="dropX">
+        <label for="touch-debug-drop-x">X <output id="touch-debug-drop-x-output" for="touch-debug-drop-x">0 px</output></label>
+        <div class="touch-debug-slider-row">
+          <button type="button" class="button button-secondary" data-nudge="-10" aria-label="Decrease drop X">-10</button>
+          <input id="touch-debug-drop-x" type="range" min="-140" max="140" step="2" value="0">
+          <button type="button" class="button button-secondary" data-nudge="10" aria-label="Increase drop X">+10</button>
+        </div>
+      </div>
+      <div class="touch-debug-offset" data-offset-key="dropY">
+        <label for="touch-debug-drop-y">Y <output id="touch-debug-drop-y-output" for="touch-debug-drop-y">0 px</output></label>
+        <div class="touch-debug-slider-row">
+          <button type="button" class="button button-secondary" data-nudge="-10" aria-label="Decrease drop Y">-10</button>
+          <input id="touch-debug-drop-y" type="range" min="-140" max="140" step="2" value="0">
+          <button type="button" class="button button-secondary" data-nudge="10" aria-label="Increase drop Y">+10</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dragged tile</legend>
+      <div class="touch-debug-offset" data-offset-key="tileX">
+        <label for="touch-debug-tile-x">X <output id="touch-debug-tile-x-output" for="touch-debug-tile-x">0 px</output></label>
+        <div class="touch-debug-slider-row">
+          <button type="button" class="button button-secondary" data-nudge="-10" aria-label="Decrease dragged tile X">-10</button>
+          <input id="touch-debug-tile-x" type="range" min="-140" max="140" step="2" value="0">
+          <button type="button" class="button button-secondary" data-nudge="10" aria-label="Increase dragged tile X">+10</button>
+        </div>
+      </div>
+      <div class="touch-debug-offset" data-offset-key="tileY">
+        <label for="touch-debug-tile-y">Y <output id="touch-debug-tile-y-output" for="touch-debug-tile-y">0 px</output></label>
+        <div class="touch-debug-slider-row">
+          <button type="button" class="button button-secondary" data-nudge="-10" aria-label="Decrease dragged tile Y">-10</button>
+          <input id="touch-debug-tile-y" type="range" min="-140" max="140" step="2" value="0">
+          <button type="button" class="button button-secondary" data-nudge="10" aria-label="Increase dragged tile Y">+10</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="touch-debug-presets">
+      <button type="button" class="button" id="touch-debug-preset-proposed">Proposed</button>
+      <button type="button" class="button button-secondary" id="touch-debug-preset-old">Old target</button>
+      <button type="button" class="button ghost" id="touch-debug-reset-board">Reset tiles</button>
+    </div>
+
+    <dl class="touch-debug-readout">
+      <dt>Touch</dt><dd id="touch-debug-touch-readout">-</dd>
+      <dt>Dragged</dt><dd id="touch-debug-drag-readout">-</dd>
+      <dt>Drop</dt><dd id="touch-debug-drop-readout">-</dd>
+      <dt>Cell</dt><dd id="touch-debug-cell-readout">-</dd>
+    </dl>
+  </form>
+</section>"#,
+        &format!(
+            r#"<script type="module" src="{}" defer></script>"#,
+            asset("/public/touch-debug.js")
+        ),
+        "touch-debug-page",
     )
 }
 

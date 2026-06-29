@@ -46,6 +46,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(routes::index))
         .route("/debug/notifications", get(routes::notification_debug_page))
+        .route("/debug/touch", get(routes::touch_debug_page))
         .route("/sw.js", get(routes::service_worker))
         .route("/healthcheck", get(routes::healthcheck))
         .route("/auth/register/begin", post(auth::register_begin))
@@ -162,6 +163,7 @@ fn asset_version() -> String {
         "public/app.css",
         "public/game.js",
         "public/auth.js",
+        "public/touch-debug.js",
         "public/sw.js",
     ] {
         if let Ok(bytes) = std::fs::read(file) {
