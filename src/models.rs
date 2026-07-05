@@ -202,6 +202,9 @@ pub struct Game {
     /// hints unlimited.
     #[serde(default)]
     pub jax_mode: bool,
+    /// August Mode: replace the bag contents with repeating AUGUST letters.
+    #[serde(default)]
+    pub august_mode: bool,
     #[serde(default)]
     pub hints_allowed: u8,
     #[serde(default)]

@@ -98,6 +98,8 @@ pub struct CreateForm {
     #[serde(default)]
     jax_mode: Option<String>,
     #[serde(default)]
+    august_mode: Option<String>,
+    #[serde(default)]
     hints: Option<u8>,
 }
 
@@ -134,12 +136,14 @@ pub async fn create_game(
     let john_mode = form.john_mode.is_some();
     let grandpa_mode = form.grandpa_mode.is_some();
     let jax_mode = form.jax_mode.is_some();
+    let august_mode = form.august_mode.is_some();
     let hints_allowed = form.hints.unwrap_or(0).min(3);
     let game = game::new_game(
         specs,
         john_mode,
         grandpa_mode,
         jax_mode,
+        august_mode,
         hints_allowed,
         &mut rand::thread_rng(),
     );

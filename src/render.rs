@@ -373,6 +373,15 @@ fn new_game_form() -> String {
         <span id="jax-mode-help" class="tooltip-content" role="tooltip">Unlimited hints and common names are valid words.</span>
       </span>
     </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="august-mode">
+        <input id="august-mode" type="checkbox" name="august_mode" value="on" />
+        <span>August Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="august-mode-help">i
+        <span id="august-mode-help" class="tooltip-content" role="tooltip">Every tile is a letter from AUGUST (no blanks).</span>
+      </span>
+    </div>
     <label class="hints-label">Hints per player
       <select name="hints">
         <option value="0" selected>None</option>

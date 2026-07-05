@@ -326,6 +326,7 @@ async fn home_page_lists_joinable_open_games_separately() {
         false,
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -347,6 +348,7 @@ async fn home_page_lists_joinable_open_games_separately() {
         false,
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -364,6 +366,7 @@ async fn home_page_lists_joinable_open_games_separately() {
                 name: "Open seat".to_string(),
             },
         ],
+        false,
         false,
         false,
         false,
@@ -491,6 +494,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
         false,
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -514,6 +518,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
         false,
         false,
         false,
+        false,
         0,
         &mut rng,
     );
@@ -534,6 +539,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
                 name: "Chill bot".to_string(),
             },
         ],
+        false,
         false,
         false,
         false,

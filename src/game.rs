@@ -95,10 +95,15 @@ pub fn new_game(
     john_mode: bool,
     grandpa_mode: bool,
     jax_mode: bool,
+    august_mode: bool,
     hints_allowed: u8,
     rng: &mut impl Rng,
 ) -> Game {
-    let mut bag = bag::shuffled_bag(rng);
+    let mut bag = if august_mode {
+        bag::shuffled_august_bag(rng)
+    } else {
+        bag::shuffled_bag(rng)
+    };
     let seats = seats
         .into_iter()
         .map(|spec| {
@@ -127,6 +132,7 @@ pub fn new_game(
         john_mode,
         grandpa_mode,
         jax_mode,
+        august_mode,
         hints_allowed,
         hints_used: vec![0; seat_count],
     }

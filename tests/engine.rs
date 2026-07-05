@@ -295,7 +295,7 @@ fn new_game_deals_full_racks() {
             name: "Bot".into(),
         },
     ];
-    let game = new_game(specs, false, false, false, 0, &mut rng);
+    let game = new_game(specs, false, false, false, false, 0, &mut rng);
     assert_eq!(game.seats.len(), 2);
     assert_eq!(game.seats[0].rack.len(), 7);
     assert_eq!(game.seats[1].rack.len(), 7);
@@ -331,6 +331,7 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
         john_mode: false,
         grandpa_mode: false,
         jax_mode: false,
+        august_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; seat_count],
     }

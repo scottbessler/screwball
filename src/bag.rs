@@ -33,6 +33,7 @@ const DISTRIBUTION: &[(char, usize)] = &[
 ];
 
 const BLANK_COUNT: usize = 2;
+const AUGUST_LETTERS: &[char] = &['A', 'U', 'G', 'U', 'S', 'T'];
 
 /// Build a full, ordered (unshuffled) 100-tile bag.
 pub fn full_bag() -> Vec<Tile> {
@@ -51,6 +52,25 @@ pub fn full_bag() -> Vec<Tile> {
 /// Build a full bag and shuffle it with the provided RNG.
 pub fn shuffled_bag(rng: &mut impl rand::Rng) -> Vec<Tile> {
     let mut tiles = full_bag();
+    tiles.shuffle(rng);
+    tiles
+}
+
+/// Build a full, ordered bag whose tiles repeat AUGUST in sequence.
+pub fn august_bag() -> Vec<Tile> {
+    let size = full_bag().len();
+    AUGUST_LETTERS
+        .iter()
+        .copied()
+        .cycle()
+        .take(size)
+        .map(Tile::Letter)
+        .collect()
+}
+
+/// Build the August bag and shuffle it with the provided RNG.
+pub fn shuffled_august_bag(rng: &mut impl rand::Rng) -> Vec<Tile> {
+    let mut tiles = august_bag();
     tiles.shuffle(rng);
     tiles
 }
@@ -77,6 +97,25 @@ mod tests {
             .filter(|tile| matches!(tile, Tile::Blank))
             .count();
         assert_eq!(blanks, BLANK_COUNT);
+    }
+
+    #[test]
+    fn august_bag_matches_full_bag_length() {
+        assert_eq!(august_bag().len(), full_bag().len());
+    }
+
+    #[test]
+    fn august_bag_has_no_blanks() {
+        assert!(!august_bag().iter().any(|tile| matches!(tile, Tile::Blank)));
+    }
+
+    #[test]
+    fn august_bag_only_contains_august_letters() {
+        assert!(
+            august_bag()
+                .iter()
+                .all(|tile| matches!(tile, Tile::Letter('A' | 'U' | 'G' | 'S' | 'T')))
+        );
     }
 
     #[test]
