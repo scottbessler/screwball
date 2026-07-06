@@ -447,6 +447,11 @@ pub fn apply_move(
     Ok(recorded)
 }
 
+/// Abandon a game: mark it finished without settling scores.
+pub fn abandon(game: &mut Game) {
+    game.status = GameStatus::Finished;
+}
+
 fn remove_tile(rack: &mut Vec<Tile>, tile: Tile) {
     if let Some(index) = rack.iter().position(|&t| t == tile) {
         rack.swap_remove(index);
