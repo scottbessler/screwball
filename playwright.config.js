@@ -17,6 +17,7 @@ export default defineConfig({
     toHaveScreenshot: {
       animations: "disabled",
       caret: "hide",
+      stylePath: "e2e/screenshot.css",
     },
   },
   projects: [
