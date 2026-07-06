@@ -18,6 +18,9 @@ export default defineConfig({
       animations: "disabled",
       caret: "hide",
       stylePath: "e2e/screenshot.css",
+      // Tolerate sub-0.2% antialiasing drift between machines; real layout or
+      // content regressions are far larger than this.
+      maxDiffPixelRatio: 0.002,
     },
   },
   projects: [
