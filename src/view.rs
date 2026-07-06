@@ -3,7 +3,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::models::{
-    Board, Difficulty, Game, GameStatus, Move, MoveKind, Premium, Seat, SeatKind, Square, Tile,
+    BestPlay, Board, Difficulty, Game, GameStatus, Move, MoveKind, Premium, Seat, SeatKind, Square,
+    Tile,
 };
 
 /// A game serialized for a specific viewer: other players' racks and the bag
@@ -23,8 +24,9 @@ pub struct GameView {
     pub john_mode: bool,
     pub grandpa_mode: bool,
     pub jax_mode: bool,
+    pub shelli_mode: bool,
+    pub scott_mode: bool,
     pub hints_allowed: u8,
-    pub hints_unlimited: bool,
     pub hints_remaining: u8,
     pub last_play: Vec<PositionView>,
 }
@@ -49,7 +51,8 @@ pub struct SeatView {
     /// Hints left for this (human) seat when hints are enabled; `None` for bots,
     /// open seats, or games without hints.
     pub hints_remaining: Option<u8>,
-    pub hints_unlimited: bool,
+    /// Number of scoring plays (not passes/exchanges) this seat has made.
+    pub play_count: usize,
 }
 
 #[derive(Serialize)]
@@ -73,6 +76,9 @@ pub struct MoveView {
     pub points: u32,
     /// Signed score change for end-game settlement entries; `0` otherwise.
     pub delta: i32,
+    /// Scott Mode: the best play that was available instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub best: Option<BestPlay>,
 }
 
 impl GameView {
@@ -105,12 +111,12 @@ impl GameView {
                 is_you: Some(index) == your_seat,
                 open: matches!(seat.kind, SeatKind::Human { user_id: None }),
                 hints_remaining: seat_hints_remaining(game, seat, index),
-                hints_unlimited: seat_hints_unlimited(game, seat),
+                play_count: seat_play_count(game, index),
             })
             .collect();
 
         let hints_remaining = match your_seat {
-            Some(i) if !game.jax_mode && game.hints_allowed > 0 => game
+            Some(i) if game.hints_allowed > 0 => game
                 .hints_allowed
                 .saturating_sub(game.hints_used.get(i).copied().unwrap_or(0)),
             _ => 0,
@@ -132,8 +138,9 @@ impl GameView {
             john_mode: game.john_mode,
             grandpa_mode: game.grandpa_mode,
             jax_mode: game.jax_mode,
+            shelli_mode: game.shelli_mode,
+            scott_mode: game.scott_mode,
             hints_allowed: game.hints_allowed,
-            hints_unlimited: game.jax_mode,
             hints_remaining,
             last_play,
         }
@@ -142,7 +149,7 @@ impl GameView {
 
 fn seat_hints_remaining(game: &Game, seat: &Seat, index: usize) -> Option<u8> {
     match seat.kind {
-        SeatKind::Human { user_id: Some(_) } if !game.jax_mode && game.hints_allowed > 0 => Some(
+        SeatKind::Human { user_id: Some(_) } if game.hints_allowed > 0 => Some(
             game.hints_allowed
                 .saturating_sub(game.hints_used.get(index).copied().unwrap_or(0)),
         ),
@@ -150,8 +157,11 @@ fn seat_hints_remaining(game: &Game, seat: &Seat, index: usize) -> Option<u8> {
     }
 }
 
-fn seat_hints_unlimited(game: &Game, seat: &Seat) -> bool {
-    game.jax_mode && matches!(seat.kind, SeatKind::Human { user_id: Some(_) })
+fn seat_play_count(game: &Game, index: usize) -> usize {
+    game.moves
+        .iter()
+        .filter(|mv| mv.seat == index && matches!(mv.kind, MoveKind::Play { .. }))
+        .count()
 }
 
 /// A compact summary of a game the viewer is seated in, for the "your other
@@ -253,6 +263,7 @@ fn move_view(mv: &Move) -> MoveView {
         words,
         points: mv.points,
         delta,
+        best: mv.best.clone(),
     }
 }
 

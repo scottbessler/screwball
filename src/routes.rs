@@ -19,7 +19,7 @@ use crate::{
     app::AppState,
     bot,
     error::AppError,
-    game::{self, MoveError, SeatSpec},
+    game::{self, GameOptions, MoveError, SeatSpec},
     models::{Difficulty, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile},
     render,
     session::{ApiAuthUser, AuthUser, MaybeUser},
@@ -78,6 +78,10 @@ pub async fn healthcheck() -> &'static str {
     "OK"
 }
 
+pub async fn new_game_page(AuthUser(_user): AuthUser) -> Html<String> {
+    Html(render::new_game_page())
+}
+
 pub async fn service_worker() -> Response {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
@@ -97,6 +101,10 @@ pub struct CreateForm {
     grandpa_mode: Option<String>,
     #[serde(default)]
     jax_mode: Option<String>,
+    #[serde(default)]
+    shelli_mode: Option<String>,
+    #[serde(default)]
+    scott_mode: Option<String>,
     #[serde(default)]
     august_mode: Option<String>,
     #[serde(default)]
@@ -133,20 +141,16 @@ pub async fn create_game(
         return Err(AppError::bad_request("a game supports at most four seats"));
     }
 
-    let john_mode = form.john_mode.is_some();
-    let grandpa_mode = form.grandpa_mode.is_some();
-    let jax_mode = form.jax_mode.is_some();
-    let august_mode = form.august_mode.is_some();
-    let hints_allowed = form.hints.unwrap_or(0).min(3);
-    let game = game::new_game(
-        specs,
-        john_mode,
-        grandpa_mode,
-        jax_mode,
-        august_mode,
-        hints_allowed,
-        &mut rand::thread_rng(),
-    );
+    let options = GameOptions {
+        john_mode: form.john_mode.is_some(),
+        grandpa_mode: form.grandpa_mode.is_some(),
+        jax_mode: form.jax_mode.is_some(),
+        shelli_mode: form.shelli_mode.is_some(),
+        scott_mode: form.scott_mode.is_some(),
+        august_mode: form.august_mode.is_some(),
+        hints_allowed: form.hints.unwrap_or(0).min(3),
+    };
+    let game = game::new_game(specs, options, &mut rand::thread_rng());
     let id = game.id;
     state.store.insert(game).await?;
 
@@ -746,9 +750,7 @@ fn apply_hint(
         });
     }
 
-    let unlimited = game.jax_mode;
-
-    if !unlimited && game.hints_allowed == 0 {
+    if game.hints_allowed == 0 {
         return Err(ApiMoveError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             message: "hints are not enabled for this game".into(),
@@ -756,7 +758,7 @@ fn apply_hint(
     }
 
     let used = game.hints_used.get(seat_index).copied().unwrap_or(0);
-    if !unlimited && used >= game.hints_allowed {
+    if used >= game.hints_allowed {
         return Err(ApiMoveError {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             message: "no hints remaining".into(),
@@ -767,34 +769,28 @@ fn apply_hint(
         &game.board,
         &game.seats[seat_index].rack,
         dict,
-        game.word_rule(),
+        game.word_rule_for(false),
     );
     let best = plays.iter().max_by_key(|p| p.1.points);
 
     match best {
         Some((_, scored)) => {
-            let remaining = if unlimited {
-                None
-            } else {
-                if game.hints_used.len() <= seat_index {
-                    game.hints_used.resize(game.seats.len(), 0);
-                }
-                game.hints_used[seat_index] += 1;
-                Some(game.hints_allowed - game.hints_used[seat_index])
-            };
+            if game.hints_used.len() <= seat_index {
+                game.hints_used.resize(game.seats.len(), 0);
+            }
+            game.hints_used[seat_index] += 1;
+            let remaining = game.hints_allowed - game.hints_used[seat_index];
             let words: Vec<&str> = scored.words.iter().map(|w| w.word.as_str()).collect();
             Ok(json!({
                 "words": words,
                 "score": scored.points,
-                "remaining": remaining,
-                "unlimited": unlimited
+                "remaining": remaining
             }))
         }
         None => Ok(json!({
             "words": [],
             "score": 0,
-            "remaining": if unlimited { None } else { Some(game.hints_allowed - used) },
-            "unlimited": unlimited,
+            "remaining": game.hints_allowed - used,
             "message": "no plays available"
         })),
     }

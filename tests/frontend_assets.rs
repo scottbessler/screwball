@@ -468,17 +468,45 @@ fn header_has_single_home_link_and_mobile_score() {
 }
 
 #[test]
-fn jax_mode_unlimited_hint_ui_is_wired() {
+fn hint_ui_has_no_unlimited_affordance() {
     assert!(
-        GAME_JS.contains("game.hints_unlimited")
-            && GAME_JS.contains("Hint (∞)")
-            && GAME_JS.contains("Jax Mode")
-            && GAME_JS.contains("unlimited hints"),
-        "Jax Mode should surface unlimited hints in the client UI",
+        !GAME_JS.contains("hints_unlimited")
+            && !GAME_JS.contains("Hint (∞)")
+            && !GAME_JS.contains("unlimited hints"),
+        "hints should always be limited; Jax Mode only allows proper names",
     );
     assert!(
-        GAME_JS.contains("seat.hints_unlimited") && GAME_JS.contains("title=\"unlimited hints\""),
-        "scoreboard should show unlimited hint affordance for Jax seats",
+        GAME_JS.contains("seat.hints_remaining") && GAME_JS.contains("title=\"hints left\""),
+        "scoreboard should show remaining hint counts",
+    );
+}
+
+#[test]
+fn scoreboard_shows_points_per_play() {
+    assert!(
+        GAME_JS.contains("function pointsPerPlay(seat)")
+            && GAME_JS.contains("title=\"Points per play\"")
+            && GAME_JS.contains("Pts/Play")
+            && GAME_JS.contains("pointsPerPlay(seat)"),
+        "scoreboard should include a points-per-play column",
+    );
+}
+
+#[test]
+fn move_log_shows_scott_mode_best_play() {
+    assert!(
+        GAME_JS.contains("mv.best")
+            && GAME_JS.contains("best-play")
+            && GAME_JS.contains("Scott Mode"),
+        "move log should surface the best available play in Scott Mode",
+    );
+    assert!(
+        GAME_JS.contains("Shelli Mode"),
+        "Shelli Mode should have a game badge",
+    );
+    assert!(
+        APP_CSS.contains(".best-play"),
+        "best-play annotation should be styled",
     );
 }
 

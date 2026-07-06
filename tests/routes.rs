@@ -12,7 +12,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use screwball::{
     app,
     dict::Dictionary,
-    game::{SeatSpec, new_game},
+    game::{GameOptions, SeatSpec, new_game},
     models::{Difficulty, Game, GameStatus, SeatKind},
     push::PushService,
     store::GameStore,
@@ -284,23 +284,40 @@ async fn public_assets_are_not_immutable_in_debug_builds() {
 }
 
 #[tokio::test]
-async fn home_page_logged_in_shows_new_game() {
+async fn home_page_logged_in_links_to_new_game_page() {
     let app = test_app().await;
     let (_user, cookie) = app.new_session();
     let response = app.router().oneshot(get("/", Some(&cookie))).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let html = body_string(response).await;
     assert!(html.contains("New game"));
+    assert!(html.contains("href=\"/games/new\""));
     assert!(html.contains("Sign out"));
+    assert!(html.contains("href=\"/debug/notifications\""));
+    assert!(html.contains("href=\"/debug/touch\""));
+    assert!(!html.contains("class=\"form new-game-form\""));
+    assert!(!html.contains("Open games"));
+    assert!(!html.contains("href=\"/demo\""));
+    assert!(!html.contains("Demo board"));
+}
+
+#[tokio::test]
+async fn new_game_page_shows_create_form() {
+    let app = test_app().await;
+    let (_user, cookie) = app.new_session();
+    let response = app
+        .router()
+        .oneshot(get("/games/new", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = body_string(response).await;
     assert!(html.contains("class=\"form new-game-form\""));
     assert!(html.contains("class=\"form-option-row\""));
     assert!(html.contains("role=\"tooltip\""));
     assert!(html.contains("name=\"jax_mode\""));
-    assert!(html.contains("href=\"/debug/notifications\""));
-    assert!(html.contains("href=\"/debug/touch\""));
-    assert!(!html.contains("Open games"));
-    assert!(!html.contains("href=\"/demo\""));
-    assert!(!html.contains("Demo board"));
+    assert!(html.contains("name=\"shelli_mode\""));
+    assert!(html.contains("name=\"scott_mode\""));
 }
 
 #[tokio::test]
@@ -323,11 +340,7 @@ async fn home_page_lists_joinable_open_games_separately() {
                 name: "Open seat".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
     let joinable_id = joinable.id;
@@ -345,11 +358,7 @@ async fn home_page_lists_joinable_open_games_separately() {
                 name: "Open seat".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
 
@@ -366,11 +375,7 @@ async fn home_page_lists_joinable_open_games_separately() {
                 name: "Open seat".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
     finished_open.status = GameStatus::Finished;
@@ -397,7 +402,7 @@ async fn home_page_lists_joinable_open_games_separately() {
 
     let your_games = html.find("<h1>Your games</h1>").unwrap();
     let open_games = html.find("<h1>Open games</h1>").unwrap();
-    assert!(your_games < open_games);
+    assert!(open_games < your_games);
 }
 
 #[tokio::test]
@@ -491,11 +496,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
                 name: "Medium bot".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
     your_turn.turn = 0;
@@ -515,11 +516,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
                 name: "Hard bot".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
     waiting_on_bot.turn = 1;
@@ -539,11 +536,7 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
                 name: "Chill bot".to_string(),
             },
         ],
-        false,
-        false,
-        false,
-        false,
-        0,
+        GameOptions::default(),
         &mut rng,
     );
     finished.status = GameStatus::Finished;
@@ -640,7 +633,7 @@ async fn create_join_and_play_flow() {
 }
 
 #[tokio::test]
-async fn jax_mode_hints_are_unlimited_even_when_hint_setting_is_none() {
+async fn jax_mode_no_longer_grants_unlimited_hints() {
     let app = test_app().await;
     let (_user, cookie) = app.new_session();
 
@@ -655,7 +648,6 @@ async fn jax_mode_hints_are_unlimited_even_when_hint_setting_is_none() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::SEE_OTHER);
     let location = location_of(&create);
-    let id: Uuid = location.trim_start_matches("/games/").parse().unwrap();
 
     let state = app
         .router()
@@ -665,21 +657,14 @@ async fn jax_mode_hints_are_unlimited_even_when_hint_setting_is_none() {
     let view: Value = serde_json::from_str(&body_string(state).await).unwrap();
     assert_eq!(view["jax_mode"], json!(true));
     assert_eq!(view["hints_allowed"], json!(0));
-    assert_eq!(view["hints_unlimited"], json!(true));
-    assert_eq!(view["seats"][0]["hints_unlimited"], json!(true));
+    assert!(view["seats"][0]["hints_remaining"].is_null());
 
     let hint = app
         .router()
         .oneshot(post_form(&format!("{location}/hint"), Some(&cookie), ""))
         .await
         .unwrap();
-    assert_eq!(hint.status(), StatusCode::OK);
-    let body: Value = serde_json::from_str(&body_string(hint).await).unwrap();
-    assert_eq!(body["unlimited"], json!(true));
-    assert!(body["remaining"].is_null());
-
-    let game = app.store.get(id).await.unwrap();
-    assert_eq!(game.hints_used[0], 0);
+    assert_eq!(hint.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]

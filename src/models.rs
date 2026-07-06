@@ -169,6 +169,13 @@ pub enum MoveKind {
     },
 }
 
+/// The highest-scoring play that was available before a move (Scott Mode).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BestPlay {
+    pub words: Vec<String>,
+    pub points: u32,
+}
+
 /// A completed, scored move recorded in the game log.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Move {
@@ -176,6 +183,9 @@ pub struct Move {
     pub kind: MoveKind,
     pub words: Vec<String>,
     pub points: u32,
+    /// Scott Mode: the best play the seat could have made instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub best: Option<BestPlay>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -198,10 +208,17 @@ pub struct Game {
     /// Grandpa Mode: disallow 2-letter words except a few common ones.
     #[serde(default)]
     pub grandpa_mode: bool,
-    /// Jax Mode: allow a broad common-name list as playable words and make
-    /// hints unlimited.
+    /// Jax Mode: allow a broad common-name list as playable words.
     #[serde(default)]
     pub jax_mode: bool,
+    /// Shelli Mode: bots are held to Grandpa Mode's 2-letter allowlist while
+    /// humans keep the full dictionary.
+    #[serde(default)]
+    pub shelli_mode: bool,
+    /// Scott Mode: after each human play, record the best play that was
+    /// available so the move log can show what could have been.
+    #[serde(default)]
+    pub scott_mode: bool,
     /// August Mode: replace the bag contents with repeating AUGUST letters.
     #[serde(default)]
     pub august_mode: bool,
@@ -264,8 +281,11 @@ impl WordRule {
 }
 
 impl Game {
-    pub fn word_rule(&self) -> WordRule {
-        match (self.grandpa_mode, self.jax_mode) {
+    /// The word rule that applies to a given actor. Shelli Mode holds bots to
+    /// the Grandpa allowlist while humans keep the full dictionary.
+    pub fn word_rule_for(&self, is_bot: bool) -> WordRule {
+        let grandpa = self.grandpa_mode || (self.shelli_mode && is_bot);
+        match (grandpa, self.jax_mode) {
             (false, false) => WordRule::Standard,
             (true, false) => WordRule::Grandpa,
             (false, true) => WordRule::Jax,

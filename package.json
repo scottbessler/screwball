@@ -5,9 +5,11 @@
   "description": "Frontend lint tooling for the Screwball board island.",
   "scripts": {
     "lint": "oxlint --deny-warnings",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.54.1",
     "oxlint": "^1.71.0"
   }
 }

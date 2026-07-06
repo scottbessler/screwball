@@ -1,0 +1,5 @@
+/* Injected into every snapshot: hide elements whose rendering depends on the
+   browser environment (notification permission state) rather than the app. */
+.notification-controls {
+  display: none !important;
+}

@@ -373,6 +373,12 @@ body {
   line-height: 1.4;
 }
 
+/* Scott Mode: the best available play shown next to a logged move. */
+.best-play {
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -1204,10 +1210,12 @@ section.card + section.card {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .account p { margin: 0; }
 .account form { margin: 0; }
+.account .new-game-link { margin-left: auto; }
 
 /* Mobile layout */
 @media (max-width: 640px) {

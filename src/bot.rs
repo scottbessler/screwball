@@ -289,7 +289,12 @@ pub fn choose_move(
     rng: &mut impl Rng,
 ) -> MoveKind {
     let seat = &game.seats[seat_index];
-    let mut plays = scored_plays(&game.board, &seat.rack, dict, game.word_rule());
+    let mut plays = scored_plays(
+        &game.board,
+        &seat.rack,
+        dict,
+        game.word_rule_for(seat.is_bot()),
+    );
     if plays.is_empty() {
         if game.bag.len() >= RACK_SIZE {
             return MoveKind::Exchange {

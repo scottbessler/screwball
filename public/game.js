@@ -1132,10 +1132,16 @@ function Rack({
   </div>`;
 }
 
+// Average points per scoring play, to one decimal; a dash before any plays.
+function pointsPerPlay(seat) {
+  if (!seat.play_count) return "\u2013";
+  return (seat.score / seat.play_count).toFixed(1);
+}
+
 function Scoreboard({ game }) {
   return html`<table class="scoreboard">
     <thead>
-      <tr><th>Player</th><th>Type</th><th>Score</th></tr>
+      <tr><th>Player</th><th>Type</th><th>Score</th><th title="Points per play">Pts/Play</th></tr>
     </thead>
     <tbody>
       ${game.seats.map(
@@ -1143,9 +1149,7 @@ function Scoreboard({ game }) {
           <td>
             ${seat.name}
             ${seat.is_you ? html`<span class="badge">you</span>` : null}
-            ${seat.hints_unlimited
-              ? html`<span class="hint-count" title="unlimited hints">💡∞</span>`
-              : seat.hints_remaining != null
+            ${seat.hints_remaining != null
               ? html`<span class="hint-count" title="hints left">💡${seat.hints_remaining}</span>`
               : null}
           </td>
@@ -1157,6 +1161,7 @@ function Scoreboard({ game }) {
                 : "human"}
           </td>
           <td class="score">${seat.score}</td>
+          <td class="score muted">${pointsPerPlay(seat)}</td>
         </tr>`,
       )}
     </tbody>
@@ -1223,6 +1228,11 @@ function MoveLog({ game }) {
               >${w}</button>`,
           )}
           ${` (+${mv.points})`}
+          ${mv.best
+            ? html` <span class="best-play muted"
+                >best: ${mv.best.words.join(", ")} (+${mv.best.points})</span
+              >`
+            : null}
           ${mv.words
             .filter((w) => open.has(`${absIdx}:${w.toUpperCase()}`))
             .map((w) => {
@@ -1629,7 +1639,7 @@ function App({ gameId, initial }) {
 
   const [hintResult, setHintResult] = useState(null);
   const [hintsRemaining, setHintsRemaining] = useState(
-    initial.hints_unlimited ? null : initial.hints_remaining || 0,
+    initial.hints_remaining || 0,
   );
   const [hintBusy, setHintBusy] = useState(false);
   const [pushStatus, setPushStatus] = useState(() => notificationSupport());
@@ -1669,9 +1679,9 @@ function App({ gameId, initial }) {
   }, []);
 
   useEffect(() => {
-    setHintsRemaining(game.hints_unlimited ? null : game.hints_remaining || 0);
+    setHintsRemaining(game.hints_remaining || 0);
     setHintResult(null);
-  }, [game.turn, game.hints_remaining, game.hints_unlimited]);
+  }, [game.turn, game.hints_remaining]);
 
   // Track the last-rendered turn so a pushed state can detect the transition
   // *into* your turn (for the notification) without re-notifying repeatedly.
@@ -2018,7 +2028,7 @@ function App({ gameId, initial }) {
         setError(data.error || "Could not get hint.");
         return;
       }
-      setHintsRemaining(data.unlimited ? null : data.remaining);
+      setHintsRemaining(data.remaining);
       if (data.words && data.words.length) {
         setHintResult(`Try: ${data.words.join(", ")} (${data.score} pts)`);
       } else {
@@ -2168,15 +2178,14 @@ function App({ gameId, initial }) {
   const finished = game.status === "Finished";
   const hasPendingTiles = pending.length > 0;
   const recallByRackId = (rackId) => recallTile({ rackId });
-  const hintsUnlimited = game.hints_unlimited;
-  const hintsEnabled = !finished && (game.hints_allowed > 0 || hintsUnlimited);
+  const hintsEnabled = !finished && game.hints_allowed > 0;
   const hintControl = hintsEnabled
     ? h("button", {
         type: "button",
         class: "button ghost hint-btn",
-        disabled: !yourTurn || hintBusy || (!hintsUnlimited && hintsRemaining <= 0),
+        disabled: !yourTurn || hintBusy || hintsRemaining <= 0,
         onClick: requestHint,
-      }, hintsUnlimited ? "Hint (∞)" : `Hint (${hintsRemaining})`)
+      }, `Hint (${hintsRemaining})`)
     : null;
   const johnLetter = hoverLetter ||
     (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
@@ -2355,8 +2364,9 @@ function App({ gameId, initial }) {
       ${game.john_mode ? html`<span class="game-badge">John Mode</span>` : null}
       ${game.grandpa_mode ? html`<span class="game-badge">Grandpa Mode</span>` : null}
       ${game.jax_mode ? html`<span class="game-badge">Jax Mode</span>` : null}
-      ${hintsUnlimited ? html`<span class="game-badge">unlimited hints</span>` : null}
-      ${!hintsUnlimited && game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
+      ${game.shelli_mode ? html`<span class="game-badge">Shelli Mode</span>` : null}
+      ${game.scott_mode ? html`<span class="game-badge">Scott Mode</span>` : null}
+      ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
     <${Scoreboard} game=${game} />
     <p class="muted">Tiles in bag: ${game.bag_count}</p>
