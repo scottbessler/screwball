@@ -769,6 +769,7 @@ fn apply_hint(
         &game.board,
         &game.seats[seat_index].rack,
         dict,
+        game.august_mode,
         game.word_rule_for(false),
     );
     let best = plays.iter().max_by_key(|p| p.1.points);

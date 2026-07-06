@@ -150,6 +150,7 @@ pub fn validate_play(
     rack: &[Tile],
     dict: &Dictionary,
     placements: &[Placement],
+    august_mode: bool,
     rule: WordRule,
 ) -> Result<ScoredPlay, MoveError> {
     if placements.is_empty() {
@@ -277,7 +278,9 @@ pub fn validate_play(
         return Err(MoveError::InvalidWords(invalid));
     }
 
-    if placements.len() == RACK_SIZE {
+    if placements.len() == RACK_SIZE
+        || (august_mode && scored.iter().any(|word| word.word == "AUGUST"))
+    {
         total += BINGO_BONUS;
     }
 
@@ -378,10 +381,17 @@ pub fn apply_move(
                 &game.seats[seat_index].rack,
                 dict,
                 &placements,
+                game.august_mode,
                 rule,
             )?;
             let best = if game.scott_mode && !is_bot {
-                best_play(&game.board, &game.seats[seat_index].rack, dict, rule)
+                best_play(
+                    &game.board,
+                    &game.seats[seat_index].rack,
+                    dict,
+                    game.august_mode,
+                    rule,
+                )
             } else {
                 None
             };
@@ -525,9 +535,10 @@ pub fn best_play(
     board: &Board,
     rack: &[Tile],
     dict: &Dictionary,
+    august_mode: bool,
     rule: WordRule,
 ) -> Option<BestPlay> {
-    crate::bot::scored_plays(board, rack, dict, rule)
+    crate::bot::scored_plays(board, rack, dict, august_mode, rule)
         .into_iter()
         .max_by_key(|(_, scored)| scored.points)
         .map(|(_, scored)| BestPlay {

@@ -57,7 +57,7 @@ fn bot_game(racks: &[&str], difficulty: Difficulty) -> Game {
 #[test]
 fn generates_first_move_through_center() {
     let board = Board::new();
-    let plays = bot::scored_plays(&board, &rack("COATSXY"), &dict(), WordRule::Standard);
+    let plays = bot::scored_plays(&board, &rack("COATSXY"), &dict(), false, WordRule::Standard);
     assert!(!plays.is_empty());
     // Every first-move play must cover the center and re-validate cleanly.
     for (placements, _) in &plays {
@@ -67,6 +67,7 @@ fn generates_first_move_through_center() {
                 &rack("COATSXY"),
                 &dict(),
                 placements,
+                false,
                 WordRule::Standard
             )
             .is_ok()
@@ -86,6 +87,7 @@ fn hard_bot_picks_a_scoring_play() {
                 &game.seats[0].rack,
                 &dict(),
                 &placements,
+                false,
                 WordRule::Standard,
             )
             .expect("bot play is legal");
@@ -102,6 +104,7 @@ fn impossible_bot_picks_the_top_play() {
         &game.board,
         &game.seats[0].rack,
         &dict(),
+        false,
         WordRule::Standard,
     )
     .into_iter()
@@ -120,6 +123,7 @@ fn impossible_bot_picks_the_top_play() {
             &game.seats[0].rack,
             &dict(),
             &placements,
+            false,
             WordRule::Standard,
         )
         .expect("legal");
@@ -148,6 +152,7 @@ fn every_difficulty_produces_a_legal_play() {
                 &game.seats[0].rack,
                 &dict(),
                 &placements,
+                false,
                 WordRule::Standard,
             )
             .unwrap_or_else(|_| panic!("legal play for {difficulty:?}"));

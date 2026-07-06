@@ -551,7 +551,10 @@ async fn home_page_badges_only_games_waiting_on_you_and_separates_finished() {
 
     assert_eq!(html.matches("badge badge-turn\">your turn").count(), 1);
     assert!(!html.contains(">you</span>"));
-    assert!(html.contains("class=\"game-list-divider\"><span>Finished games</span>"));
+    assert!(html.contains("<details class=\"finished-games\""));
+    assert!(
+        html.contains("<summary class=\"game-list-divider\"><span>Finished games</span></summary>")
+    );
     assert!(html.contains("class=\"game-list-item is-finished\""));
 
     let divider = html.find("Finished games").unwrap();
