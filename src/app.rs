@@ -66,6 +66,7 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}/state", get(routes::game_state))
         .route("/games/{id}/events", get(routes::game_events))
         .route("/games/{id}/move", post(routes::submit_move))
+        .route("/games/{id}/abandon", post(routes::abandon_game))
         .route("/games/{id}/hint", post(routes::hint))
         .route("/api/define/{word}", get(routes::define))
         .nest_service("/public", ServeDir::new("public"))

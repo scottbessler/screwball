@@ -2071,6 +2071,35 @@ function App({ gameId, initial }) {
     }
   }
 
+  async function abandonGame() {
+    if (!window.confirm("Abandon this game? It will be marked as finished for everyone.")) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/games/${gameId}/abandon`, { method: "POST" });
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (!res.ok) {
+        setError((data && data.error) || "Could not abandon the game.");
+        return;
+      }
+      if (data) {
+        setGame(data);
+        reset();
+      }
+    } catch {
+      setError("Network error — try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function submitPlay() {
     if (!pending.length) {
       setError("Place at least one tile first.");
@@ -2332,6 +2361,14 @@ function App({ gameId, initial }) {
     <${Scoreboard} game=${game} />
     <p class="muted">Tiles in bag: ${game.bag_count}</p>
     <${MoveLog} game=${game} />
+    ${seated && !finished
+      ? h("button", {
+          type: "button",
+          class: "button ghost abandon-button",
+          disabled: busy,
+          onClick: abandonGame,
+        }, "Abandon game")
+      : null}
     ${notificationControl}
     <${OtherGames} gameId=${gameId} />
   </aside>`;

@@ -540,6 +540,42 @@ pub async fn submit_move(
     }
 }
 
+pub async fn abandon_game(
+    State(state): State<AppState>,
+    ApiAuthUser(user): ApiAuthUser,
+    Path(id): Path<Uuid>,
+) -> Response {
+    let result = state
+        .store
+        .update(id, move |game| {
+            if game.status == GameStatus::Finished {
+                return Err(ApiMoveError {
+                    status: StatusCode::UNPROCESSABLE_ENTITY,
+                    message: "the game is already finished".to_string(),
+                });
+            }
+            let seated = game.seats.iter().any(|seat| match seat.kind {
+                SeatKind::Human { user_id } => user_id == Some(user),
+                SeatKind::Bot { .. } => false,
+            });
+            if !seated {
+                return Err(ApiMoveError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "you are not seated in this game".to_string(),
+                });
+            }
+            game::abandon(game);
+            Ok(GameView::for_viewer(game, user))
+        })
+        .await;
+
+    match result {
+        Ok(Ok(view)) => (StatusCode::OK, Json(view)).into_response(),
+        Ok(Err(api)) => move_error(api.status, &api.message),
+        Err(err) => err.into_response(),
+    }
+}
+
 /// Look up a word's definition via the server-side cache. Public (definitions
 /// aren't game-private); restricted to short ASCII-alphabetic words so it can't
 /// be used as an open URL proxy. 404 means "no definition found".
