@@ -262,6 +262,7 @@ pub fn scored_plays(
     board: &Board,
     rack: &[Tile],
     dict: &Dictionary,
+    august_mode: bool,
     rule: WordRule,
 ) -> Vec<(Vec<Placement>, ScoredPlay)> {
     let augmented;
@@ -274,7 +275,7 @@ pub fn scored_plays(
     generate_plays(board, rack, generator_dict)
         .into_iter()
         .filter_map(|placements| {
-            validate_play(board, rack, dict, &placements, rule)
+            validate_play(board, rack, dict, &placements, august_mode, rule)
                 .ok()
                 .map(|scored| (placements, scored))
         })
@@ -293,6 +294,7 @@ pub fn choose_move(
         &game.board,
         &seat.rack,
         dict,
+        game.august_mode,
         game.word_rule_for(seat.is_bot()),
     );
     if plays.is_empty() {

@@ -6,8 +6,8 @@ use uuid::Uuid;
 use screwball::dict::Dictionary;
 use screwball::game::{GameOptions, MoveError, SeatSpec, apply_move, new_game, validate_play};
 use screwball::models::{
-    Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule, is_jax_name,
-    jax_names,
+    BINGO_BONUS, Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule,
+    is_jax_name, jax_names,
 };
 
 fn dict() -> Dictionary {
@@ -31,8 +31,15 @@ fn first_move_scores_center_double_word() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A'), letter('T'), letter('X')];
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
-    let scored =
-        validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).expect("valid play");
+    let scored = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .expect("valid play");
     assert_eq!(scored.words.len(), 1);
     assert_eq!(scored.words[0].word, "CAT");
     // C(3)+A(1)+T(1) = 5, doubled by the center star = 10.
@@ -44,7 +51,15 @@ fn first_move_must_cover_center() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A'), letter('T')];
     let placements = vec![place(0, 0, 'C'), place(0, 1, 'A'), place(0, 2, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
     assert_eq!(err, MoveError::FirstMoveMustCoverCenter);
 }
 
@@ -53,7 +68,15 @@ fn rejects_words_not_in_dictionary() {
     let board = Board::new();
     let rack = vec![letter('X'), letter('Y'), letter('Z')];
     let placements = vec![place(7, 6, 'X'), place(7, 7, 'Y'), place(7, 8, 'Z')];
-    let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
     assert!(matches!(err, MoveError::InvalidWords(_)));
 }
 
@@ -63,9 +86,24 @@ fn grandpa_mode_rejects_uncommon_two_letter_words() {
     let rack = vec![letter('H'), letter('A')];
     let placements = vec![place(7, 7, 'H'), place(7, 8, 'A')];
     // "HA" is a valid dictionary word but not on Grandpa's allowlist.
-    validate_play(&board, &rack, &dict(), &placements, WordRule::Standard)
-        .expect("standard allows HA");
-    let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Grandpa).unwrap_err();
+    validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .expect("standard allows HA");
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Grandpa,
+    )
+    .unwrap_err();
     assert_eq!(err, MoveError::DisallowedWords(vec!["HA".to_string()]));
 }
 
@@ -75,8 +113,15 @@ fn grandpa_mode_allows_common_two_letter_words() {
     let rack = vec![letter('T'), letter('O')];
     let placements = vec![place(7, 7, 'T'), place(7, 8, 'O')];
     // "TO" is common enough to survive Grandpa Mode.
-    validate_play(&board, &rack, &dict(), &placements, WordRule::Grandpa)
-        .expect("grandpa allows TO");
+    validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Grandpa,
+    )
+    .expect("grandpa allows TO");
 }
 
 #[test]
@@ -108,6 +153,7 @@ fn jax_mode_allows_top_names_not_in_dictionary() {
         &rack,
         &names_without_olivia,
         &placements,
+        false,
         WordRule::Standard,
     )
     .unwrap_err();
@@ -118,6 +164,7 @@ fn jax_mode_allows_top_names_not_in_dictionary() {
         &rack,
         &names_without_olivia,
         &placements,
+        false,
         WordRule::Jax,
     )
     .expect("Jax Mode allows common names");
@@ -128,7 +175,15 @@ fn rejects_tiles_not_in_rack() {
     let board = Board::new();
     let rack = vec![letter('C'), letter('A')];
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
     assert_eq!(err, MoveError::TilesNotInRack);
 }
 
@@ -138,7 +193,15 @@ fn rejects_non_contiguous_placement() {
     let rack = vec![letter('C'), letter('A'), letter('T')];
     // Gap at (7,7): tiles at cols 6 and 8 with nothing between.
     let placements = vec![place(7, 6, 'C'), place(7, 8, 'T')];
-    let err = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
     assert_eq!(err, MoveError::NotContiguous);
 }
 
@@ -154,8 +217,15 @@ fn second_move_must_connect() {
     // A HAT placed far away, touching nothing, must be rejected.
     let rack = vec![letter('H'), letter('A'), letter('T')];
     let placements = vec![place(0, 0, 'H'), place(0, 1, 'A'), place(0, 2, 'T')];
-    let err =
-        validate_play(&game.board, &rack, &dict(), &placements, WordRule::Standard).unwrap_err();
+    let err = validate_play(
+        &game.board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
     assert_eq!(err, MoveError::NotConnected);
 }
 
@@ -174,6 +244,7 @@ fn cross_word_play_scores_both_words() {
         &game.seats[1].rack,
         &dict(),
         &placements,
+        false,
         WordRule::Standard,
     )
     .expect("connecting play");
@@ -193,10 +264,94 @@ fn bingo_awards_fifty_point_bonus() {
         letter('A'),
     ];
     let placements: Vec<Placement> = (4..=10).map(|col| place(7, col, 'A')).collect();
-    let scored = validate_play(&board, &rack, &dict(), &placements, WordRule::Standard)
-        .expect("seven-tile play");
+    let scored = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        WordRule::Standard,
+    )
+    .expect("seven-tile play");
     // 7 x A(1) = 7, doubled by center = 14, plus 50 bingo bonus = 64.
     assert_eq!(scored.points, 64);
+}
+
+#[test]
+fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
+    let dict = Dictionary::from_words("AUGUST\nOAT\nAAAAAAA\n");
+
+    let august_board = Board::new();
+    let august_rack = vec![
+        letter('A'),
+        letter('U'),
+        letter('G'),
+        letter('U'),
+        letter('S'),
+        letter('T'),
+    ];
+    let august_placements = vec![
+        place(7, 4, 'A'),
+        place(7, 5, 'U'),
+        place(7, 6, 'G'),
+        place(7, 7, 'U'),
+        place(7, 8, 'S'),
+        place(7, 9, 'T'),
+    ];
+    let august_scored = validate_play(
+        &august_board,
+        &august_rack,
+        &dict,
+        &august_placements,
+        true,
+        WordRule::Standard,
+    )
+    .expect("AUGUST is legal in August Mode");
+    assert_eq!(august_scored.words[0].word, "AUGUST");
+    assert_eq!(
+        august_scored.points,
+        august_scored.words[0].points + BINGO_BONUS
+    );
+
+    let oat_board = Board::new();
+    let oat_rack = vec![letter('O'), letter('A'), letter('T')];
+    let oat_placements = vec![place(7, 6, 'O'), place(7, 7, 'A'), place(7, 8, 'T')];
+    let oat_scored = validate_play(
+        &oat_board,
+        &oat_rack,
+        &dict,
+        &oat_placements,
+        true,
+        WordRule::Standard,
+    )
+    .expect("OAT is legal in August Mode");
+    assert_eq!(oat_scored.words[0].word, "OAT");
+    assert_eq!(oat_scored.points, oat_scored.words[0].points);
+
+    let bingo_board = Board::new();
+    let bingo_rack = vec![
+        letter('A'),
+        letter('A'),
+        letter('A'),
+        letter('A'),
+        letter('A'),
+        letter('A'),
+        letter('A'),
+    ];
+    let bingo_placements: Vec<Placement> = (4..=10).map(|col| place(7, col, 'A')).collect();
+    let bingo_scored = validate_play(
+        &bingo_board,
+        &bingo_rack,
+        &dict,
+        &bingo_placements,
+        true,
+        WordRule::Standard,
+    )
+    .expect("seven-tile bingo is legal in August Mode");
+    assert_eq!(
+        bingo_scored.points,
+        bingo_scored.words[0].points + BINGO_BONUS
+    );
 }
 
 #[test]

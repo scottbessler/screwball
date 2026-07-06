@@ -432,23 +432,32 @@ fn new_game_form() -> String {
 }
 
 fn game_list(games: &[Game], current: Uuid) -> String {
-    let mut rows = String::new();
+    let mut active = String::new();
     for game in games
         .iter()
         .filter(|game| game.status != GameStatus::Finished)
     {
-        rows.push_str(&game_list_item(game, current));
+        active.push_str(&game_list_item(game, current));
     }
-    if games.iter().any(|game| game.status == GameStatus::Finished) {
-        rows.push_str(r#"<li class="game-list-divider"><span>Finished games</span></li>"#);
-    }
+
+    let mut finished = String::new();
     for game in games
         .iter()
         .filter(|game| game.status == GameStatus::Finished)
     {
-        rows.push_str(&game_list_item(game, current));
+        finished.push_str(&game_list_item(game, current));
     }
-    format!("<ul class=\"game-list\">{rows}</ul>")
+
+    let mut html = format!("<ul class=\"game-list\">{active}</ul>");
+    if !finished.is_empty() {
+        html.push_str(&format!(
+            r#"<details class="finished-games">
+  <summary class="game-list-divider"><span>Finished games</span></summary>
+  <ul class="game-list finished-game-list">{finished}</ul>
+</details>"#,
+        ));
+    }
+    html
 }
 
 fn game_list_item(game: &Game, current: Uuid) -> String {

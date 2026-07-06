@@ -788,6 +788,26 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.finished-games > summary.game-list-divider {
+  cursor: pointer;
+  list-style: none;
+}
+
+.finished-games > summary.game-list-divider::-webkit-details-marker {
+  display: none;
+}
+
+.finished-games > summary.game-list-divider > span::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: 0.4rem;
+  transition: transform 0.15s ease;
+}
+
+.finished-games[open] > summary.game-list-divider > span::before {
+  transform: rotate(90deg);
+}
+
 section.card + section.card {
   margin-top: 1.5rem;
 }
