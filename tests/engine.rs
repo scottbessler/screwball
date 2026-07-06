@@ -4,7 +4,7 @@ use rand::rngs::StdRng;
 use uuid::Uuid;
 
 use screwball::dict::Dictionary;
-use screwball::game::{MoveError, SeatSpec, apply_move, new_game, validate_play};
+use screwball::game::{GameOptions, MoveError, SeatSpec, apply_move, new_game, validate_play};
 use screwball::models::{
     Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule, is_jax_name,
     jax_names,
@@ -295,7 +295,7 @@ fn new_game_deals_full_racks() {
             name: "Bot".into(),
         },
     ];
-    let game = new_game(specs, false, false, false, false, 0, &mut rng);
+    let game = new_game(specs, GameOptions::default(), &mut rng);
     assert_eq!(game.seats.len(), 2);
     assert_eq!(game.seats[0].rack.len(), 7);
     assert_eq!(game.seats[1].rack.len(), 7);
@@ -331,6 +331,8 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
         john_mode: false,
         grandpa_mode: false,
         jax_mode: false,
+        shelli_mode: false,
+        scott_mode: false,
         august_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; seat_count],
@@ -342,4 +344,73 @@ fn play_first_cat(game: &mut Game) {
     let mut rng = StdRng::seed_from_u64(99);
     let placements = vec![place(7, 6, 'C'), place(7, 7, 'A'), place(7, 8, 'T')];
     apply_move(game, &dict(), 0, MoveKind::Play { placements }, &mut rng).expect("first CAT play");
+}
+
+#[test]
+fn shelli_mode_restricts_bots_to_grandpa_words_but_not_humans() {
+    let mut game = game_with(vec![
+        (vec![letter('H'), letter('A')], 0),
+        (vec![letter('T'), letter('O')], 0),
+    ]);
+    game.shelli_mode = true;
+    assert_eq!(game.word_rule_for(true), WordRule::Grandpa);
+    assert_eq!(game.word_rule_for(false), WordRule::Standard);
+
+    // A human may open with HA (full dictionary)...
+    let mut rng = StdRng::seed_from_u64(3);
+    let placements = vec![place(7, 7, 'H'), place(7, 8, 'A')];
+    apply_move(
+        &mut game,
+        &dict(),
+        0,
+        MoveKind::Play {
+            placements: placements.clone(),
+        },
+        &mut rng,
+    )
+    .expect("human can play HA in Shelli Mode");
+
+    // ...but a bot holding the same tiles could not have.
+    let mut bot_game = game_with(vec![
+        (vec![letter('H'), letter('A')], 0),
+        (vec![letter('T'), letter('O')], 0),
+    ]);
+    bot_game.shelli_mode = true;
+    bot_game.seats[0].kind = SeatKind::Bot {
+        difficulty: screwball::models::Difficulty::Hard,
+    };
+    let err = apply_move(
+        &mut bot_game,
+        &dict(),
+        0,
+        MoveKind::Play { placements },
+        &mut rng,
+    )
+    .unwrap_err();
+    assert_eq!(err, MoveError::DisallowedWords(vec!["HA".to_string()]));
+}
+
+#[test]
+fn scott_mode_records_best_play_for_human_moves() {
+    let mut game = game_with(vec![
+        (vec![letter('C'), letter('A'), letter('T'), letter('S')], 0),
+        (vec![letter('T'), letter('O')], 0),
+    ]);
+    game.scott_mode = true;
+    play_first_cat(&mut game);
+
+    let best = game.moves[0].best.as_ref().expect("best play recorded");
+    assert!(!best.words.is_empty());
+    // The best available play scores at least as much as the one made.
+    assert!(best.points >= game.moves[0].points);
+}
+
+#[test]
+fn best_play_is_not_recorded_without_scott_mode() {
+    let mut game = game_with(vec![
+        (vec![letter('C'), letter('A'), letter('T')], 0),
+        (vec![letter('T'), letter('O')], 0),
+    ]);
+    play_first_cat(&mut game);
+    assert!(game.moves[0].best.is_none());
 }

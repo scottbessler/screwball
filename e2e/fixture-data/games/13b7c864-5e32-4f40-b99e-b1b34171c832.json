@@ -1,0 +1,1353 @@
+{
+  "id": "13b7c864-5e32-4f40-b99e-b1b34171c832",
+  "status": "Active",
+  "board": {
+    "squares": [
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": {
+          "letter": "M",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "O",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "D",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "E",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": {
+          "letter": "R",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "U",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "E",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "N",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": {
+          "letter": "E",
+          "is_blank": false
+        }
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "DoubleLetter",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "None",
+        "tile": null
+      },
+      {
+        "premium": "TripleWord",
+        "tile": null
+      }
+    ]
+  },
+  "bag": [
+    {
+      "Letter": "N"
+    },
+    "Blank",
+    {
+      "Letter": "S"
+    },
+    {
+      "Letter": "L"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "X"
+    },
+    {
+      "Letter": "W"
+    },
+    {
+      "Letter": "H"
+    },
+    {
+      "Letter": "R"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "O"
+    },
+    {
+      "Letter": "R"
+    },
+    {
+      "Letter": "N"
+    },
+    {
+      "Letter": "O"
+    },
+    {
+      "Letter": "V"
+    },
+    {
+      "Letter": "O"
+    },
+    {
+      "Letter": "R"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "B"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "G"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "N"
+    },
+    {
+      "Letter": "F"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "Z"
+    },
+    {
+      "Letter": "V"
+    },
+    {
+      "Letter": "Y"
+    },
+    "Blank",
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "L"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "S"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "J"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "Q"
+    },
+    {
+      "Letter": "D"
+    },
+    {
+      "Letter": "L"
+    },
+    {
+      "Letter": "O"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "R"
+    },
+    {
+      "Letter": "D"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "L"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "P"
+    },
+    {
+      "Letter": "K"
+    },
+    {
+      "Letter": "U"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "R"
+    },
+    {
+      "Letter": "O"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "S"
+    },
+    {
+      "Letter": "N"
+    },
+    {
+      "Letter": "P"
+    },
+    {
+      "Letter": "C"
+    },
+    {
+      "Letter": "U"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "C"
+    },
+    {
+      "Letter": "I"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "T"
+    },
+    {
+      "Letter": "A"
+    },
+    {
+      "Letter": "N"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "B"
+    },
+    {
+      "Letter": "G"
+    },
+    {
+      "Letter": "E"
+    },
+    {
+      "Letter": "D"
+    },
+    {
+      "Letter": "S"
+    },
+    {
+      "Letter": "I"
+    }
+  ],
+  "seats": [
+    {
+      "id": "d5b94c41-bc37-43b5-a000-9f21465bf9c4",
+      "kind": {
+        "Human": {
+          "user_id": "a56b7dfc-6f33-4b51-bb28-4007834fdabf"
+        }
+      },
+      "name": "Scott",
+      "rack": [
+        {
+          "Letter": "A"
+        },
+        {
+          "Letter": "H"
+        },
+        {
+          "Letter": "W"
+        },
+        {
+          "Letter": "U"
+        },
+        {
+          "Letter": "M"
+        },
+        {
+          "Letter": "A"
+        },
+        {
+          "Letter": "Y"
+        }
+      ],
+      "score": 6
+    },
+    {
+      "id": "46259c84-e89e-4434-89df-a98555c5c7c3",
+      "kind": {
+        "Bot": {
+          "difficulty": "Medium"
+        }
+      },
+      "name": "Medium bot",
+      "rack": [
+        {
+          "Letter": "E"
+        },
+        {
+          "Letter": "O"
+        },
+        {
+          "Letter": "F"
+        },
+        {
+          "Letter": "I"
+        },
+        {
+          "Letter": "O"
+        },
+        {
+          "Letter": "I"
+        },
+        {
+          "Letter": "G"
+        }
+      ],
+      "score": 13
+    }
+  ],
+  "turn": 0,
+  "moves": [
+    {
+      "seat": 0,
+      "kind": {
+        "Play": {
+          "placements": [
+            {
+              "position": {
+                "row": 7,
+                "col": 7
+              },
+              "letter": "R",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 7,
+                "col": 8
+              },
+              "letter": "U",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 7,
+                "col": 9
+              },
+              "letter": "E",
+              "is_blank": false
+            }
+          ]
+        }
+      },
+      "words": [
+        "RUE"
+      ],
+      "points": 6,
+      "best": {
+        "words": [
+          "HAW"
+        ],
+        "points": 18
+      }
+    },
+    {
+      "seat": 1,
+      "kind": {
+        "Play": {
+          "placements": [
+            {
+              "position": {
+                "row": 3,
+                "col": 7
+              },
+              "letter": "M",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 4,
+                "col": 7
+              },
+              "letter": "O",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 5,
+                "col": 7
+              },
+              "letter": "D",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 6,
+                "col": 7
+              },
+              "letter": "E",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 8,
+                "col": 7
+              },
+              "letter": "N",
+              "is_blank": false
+            },
+            {
+              "position": {
+                "row": 9,
+                "col": 7
+              },
+              "letter": "E",
+              "is_blank": false
+            }
+          ]
+        }
+      },
+      "words": [
+        "MODERNE"
+      ],
+      "points": 13
+    }
+  ],
+  "consecutive_scoreless": 0,
+  "created_at": "2026-07-06T06:23:59.603085656Z",
+  "updated_at": "2026-07-06T06:24:00.228891523Z",
+  "john_mode": false,
+  "grandpa_mode": false,
+  "jax_mode": false,
+  "shelli_mode": true,
+  "scott_mode": true,
+  "august_mode": false,
+  "hints_allowed": 2,
+  "hints_used": [
+    0,
+    0
+  ]
+}

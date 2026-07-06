@@ -9,8 +9,8 @@ use crate::bag;
 use crate::board::collect_run;
 use crate::dict::Dictionary;
 use crate::models::{
-    BINGO_BONUS, Board, CENTER, Game, GameStatus, Move, MoveKind, PlacedTile, Placement, Position,
-    Premium, RACK_SIZE, SCORELESS_LIMIT, Seat, SeatKind, Tile, WordRule,
+    BINGO_BONUS, BestPlay, Board, CENTER, Game, GameStatus, Move, MoveKind, PlacedTile, Placement,
+    Position, Premium, RACK_SIZE, SCORELESS_LIMIT, Seat, SeatKind, Tile, WordRule,
 };
 
 /// Specification for one seat at table-creation time.
@@ -90,16 +90,20 @@ pub struct ScoredPlay {
     pub points: u32,
 }
 
-pub fn new_game(
-    seats: Vec<SeatSpec>,
-    john_mode: bool,
-    grandpa_mode: bool,
-    jax_mode: bool,
-    august_mode: bool,
-    hints_allowed: u8,
-    rng: &mut impl Rng,
-) -> Game {
-    let mut bag = if august_mode {
+/// Table-wide options chosen at game-creation time.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GameOptions {
+    pub john_mode: bool,
+    pub grandpa_mode: bool,
+    pub jax_mode: bool,
+    pub shelli_mode: bool,
+    pub scott_mode: bool,
+    pub august_mode: bool,
+    pub hints_allowed: u8,
+}
+
+pub fn new_game(seats: Vec<SeatSpec>, options: GameOptions, rng: &mut impl Rng) -> Game {
+    let mut bag = if options.august_mode {
         bag::shuffled_august_bag(rng)
     } else {
         bag::shuffled_bag(rng)
@@ -129,11 +133,13 @@ pub fn new_game(
         consecutive_scoreless: 0,
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        john_mode,
-        grandpa_mode,
-        jax_mode,
-        august_mode,
-        hints_allowed,
+        john_mode: options.john_mode,
+        grandpa_mode: options.grandpa_mode,
+        jax_mode: options.jax_mode,
+        shelli_mode: options.shelli_mode,
+        scott_mode: options.scott_mode,
+        august_mode: options.august_mode,
+        hints_allowed: options.hints_allowed,
         hints_used: vec![0; seat_count],
     }
 }
@@ -363,6 +369,8 @@ pub fn apply_move(
         return Err(MoveError::NotYourTurn);
     }
 
+    let is_bot = game.seats[seat_index].is_bot();
+    let rule = game.word_rule_for(is_bot);
     let recorded = match kind {
         MoveKind::Play { placements } => {
             let scored = validate_play(
@@ -370,8 +378,13 @@ pub fn apply_move(
                 &game.seats[seat_index].rack,
                 dict,
                 &placements,
-                game.word_rule(),
+                rule,
             )?;
+            let best = if game.scott_mode && !is_bot {
+                best_play(&game.board, &game.seats[seat_index].rack, dict, rule)
+            } else {
+                None
+            };
             for placement in &placements {
                 let needed = if placement.is_blank {
                     Tile::Blank
@@ -390,6 +403,7 @@ pub fn apply_move(
                 kind: MoveKind::Play { placements },
                 words: scored.words.iter().map(|w| w.word.clone()).collect(),
                 points: scored.points,
+                best,
             }
         }
         MoveKind::Exchange { tiles } => {
@@ -418,6 +432,7 @@ pub fn apply_move(
                 kind: MoveKind::Exchange { tiles },
                 words: Vec::new(),
                 points: 0,
+                best: None,
             }
         }
         MoveKind::Pass => Move {
@@ -425,6 +440,7 @@ pub fn apply_move(
             kind: MoveKind::Pass,
             words: Vec::new(),
             points: 0,
+            best: None,
         },
         // Settlement entries are produced only by `finish_game`, never submitted.
         MoveKind::EndAdjustment { .. } => unreachable!("end adjustments are engine-internal"),
@@ -492,8 +508,25 @@ fn finish_game(game: &mut Game, went_out: Option<usize>) {
                 },
                 words: Vec::new(),
                 points: 0,
+                best: None,
             });
         }
     }
     game.status = GameStatus::Finished;
+}
+
+/// The highest-scoring play available for `rack` on `board`, if any.
+pub fn best_play(
+    board: &Board,
+    rack: &[Tile],
+    dict: &Dictionary,
+    rule: WordRule,
+) -> Option<BestPlay> {
+    crate::bot::scored_plays(board, rack, dict, rule)
+        .into_iter()
+        .max_by_key(|(_, scored)| scored.points)
+        .map(|(_, scored)| BestPlay {
+            words: scored.words.iter().map(|w| w.word.clone()).collect(),
+            points: scored.points,
+        })
 }

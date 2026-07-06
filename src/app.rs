@@ -55,6 +55,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/login/finish", post(auth::login_finish))
         .route("/auth/logout", post(auth::logout))
         .route("/games", post(routes::create_game))
+        .route("/games/new", get(routes::new_game_page))
         .route("/api/my-games", get(routes::my_games))
         .route("/api/push/vapid-public-key", get(routes::push_public_key))
         .route("/api/push/debug", get(routes::push_debug_status))

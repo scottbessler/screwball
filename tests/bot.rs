@@ -46,6 +46,8 @@ fn bot_game(racks: &[&str], difficulty: Difficulty) -> Game {
         john_mode: false,
         grandpa_mode: false,
         jax_mode: false,
+        shelli_mode: false,
+        scott_mode: false,
         august_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; racks.len()],

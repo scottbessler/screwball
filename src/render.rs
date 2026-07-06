@@ -128,7 +128,6 @@ pub fn home_page(
             "",
         );
     };
-    let new_game = new_game_form();
     let list = if games.is_empty() {
         "<p class=\"muted\">No games yet. Create one to get started.</p>".to_string()
     } else {
@@ -154,20 +153,32 @@ pub fn home_page(
         &format!(
             r#"<section class="card account">
   <p class="muted">{greeting}</p>
+  <a class="button new-game-link" href="/games/new">New game</a>
   <form method="post" action="/auth/logout">
     <button type="submit" class="button button-secondary">Sign out</button>
   </form>
 </section>
-<section class="card">
-  <h1>New game</h1>
-  {new_game}
-</section>
+{open_games}
 <section class="card">
   <h1>Your games</h1>
   {list}
   <p class="debug-link"><a href="/debug/notifications">Notification debug</a> | <a href="/debug/touch">Touch debug</a></p>
-</section>
-{open_games}"#
+</section>"#
+        ),
+    )
+}
+
+/// The standalone create-game page linked from the home screen.
+pub fn new_game_page() -> String {
+    layout(
+        "New game — Screwball",
+        &format!(
+            r#"<section class="card">
+  <h1>New game</h1>
+  {form}
+  <p class="muted"><a href="/">Back home</a></p>
+</section>"#,
+            form = new_game_form(),
         ),
     )
 }
@@ -370,7 +381,25 @@ fn new_game_form() -> String {
         <span>Jax Mode</span>
       </label>
       <span class="info-tooltip" tabindex="0" aria-describedby="jax-mode-help">i
-        <span id="jax-mode-help" class="tooltip-content" role="tooltip">Unlimited hints and common names are valid words.</span>
+        <span id="jax-mode-help" class="tooltip-content" role="tooltip">Common names are valid words.</span>
+      </span>
+    </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="shelli-mode">
+        <input id="shelli-mode" type="checkbox" name="shelli_mode" value="on" />
+        <span>Shelli Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="shelli-mode-help">i
+        <span id="shelli-mode-help" class="tooltip-content" role="tooltip">Bots may only use common 2-letter words; humans get the full list.</span>
+      </span>
+    </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="scott-mode">
+        <input id="scott-mode" type="checkbox" name="scott_mode" value="on" />
+        <span>Scott Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="scott-mode-help">i
+        <span id="scott-mode-help" class="tooltip-content" role="tooltip">After each play, the move log shows the best word you could have made.</span>
       </span>
     </div>
     <div class="form-option-row">
@@ -644,35 +673,43 @@ fn render_scoreboard(view: &GameView) -> String {
             } else {
                 "human".to_string()
             };
-            let hints = if seat.hints_unlimited {
-                r#" <span class="hint-count" title="unlimited hints">💡∞</span>"#.to_string()
-            } else {
-                match seat.hints_remaining {
-                    Some(n) => {
-                        format!(r#" <span class="hint-count" title="hints left">💡{n}</span>"#)
-                    }
-                    None => String::new(),
+            let hints = match seat.hints_remaining {
+                Some(n) => {
+                    format!(r#" <span class="hint-count" title="hints left">💡{n}</span>"#)
                 }
+                None => String::new(),
             };
             format!(
                 r#"<tr class="seat{turn}">
   <td>{name}{you}{hints}</td>
   <td class="muted">{kind}</td>
   <td class="score">{score}</td>
+  <td class="score muted">{avg}</td>
 </tr>"#,
                 name = escape(&seat.name),
                 score = seat.score,
+                avg = points_per_play(seat.score, seat.play_count),
             )
         })
         .collect();
     format!(
         r#"<table class="scoreboard">
-  <thead><tr><th>Player</th><th>Type</th><th>Score</th></tr></thead>
+  <thead><tr><th>Player</th><th>Type</th><th>Score</th><th title="Points per play">Pts/Play</th></tr></thead>
   <tbody>{rows}</tbody>
 </table>
 <p class="muted">Tiles in bag: {bag}</p>"#,
         bag = view.bag_count,
     )
+}
+
+/// Average points per scoring play, formatted to one decimal; a dash when the
+/// seat has not played yet.
+fn points_per_play(score: i32, play_count: usize) -> String {
+    if play_count == 0 {
+        "–".to_string()
+    } else {
+        format!("{:.1}", score as f64 / play_count as f64)
+    }
 }
 
 fn render_move_log(view: &GameView) -> String {
@@ -690,8 +727,16 @@ fn render_move_log(view: &GameView) -> String {
                 .get(mv.seat)
                 .map(|s| escape(&s.name))
                 .unwrap_or_default();
+            let best = match (mv.kind, &mv.best) {
+                ("play", Some(best)) => format!(
+                    r#" <span class="best-play muted">best: {} (+{})</span>"#,
+                    best.words.join(", "),
+                    best.points
+                ),
+                _ => String::new(),
+            };
             let detail = match mv.kind {
-                "play" => format!("{} (+{})", mv.words.join(", "), mv.points),
+                "play" => format!("{} (+{}){best}", mv.words.join(", "), mv.points),
                 "exchange" => "exchanged tiles".to_string(),
                 "adjustment" if mv.delta >= 0 => {
                     format!("out bonus (+{})", mv.delta)
