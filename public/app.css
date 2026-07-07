@@ -202,6 +202,7 @@ body {
   margin-top: 1rem;
   max-width: 600px;
   aspect-ratio: 1 / 1;
+  container-type: inline-size;
 }
 
 .cell {
@@ -211,8 +212,8 @@ body {
   justify-content: center;
   background: var(--board-bg);
   border-radius: 2px;
-  font-size: clamp(0.45rem, 1.4vw, 0.7rem);
-  font-weight: 700;
+  font-size: min(2cqw, 0.65rem);
+  font-weight: 600;
   color: color-mix(in srgb, var(--ink) 70%, transparent);
   aspect-ratio: 1 / 1;
 }
@@ -244,13 +245,14 @@ body {
 }
 
 .cell .tile-letter {
-  font-size: clamp(0.95rem, 3.4vw, 1.4rem);
+  font-size: min(3.9cqw, 1.2rem);
+  font-weight: 500;
 }
 
 .cell .tile-points {
   right: 1px;
   bottom: 0;
-  font-size: clamp(0.38rem, 1vw, 0.55rem);
+  font-size: min(1.5cqw, 0.5rem);
 }
 
 .tile-blank .tile-letter {
@@ -258,7 +260,7 @@ body {
 }
 
 .premium-label {
-  font-size: clamp(0.44rem, 1.3vw, 0.62rem);
+  font-size: min(1.8cqw, 0.62rem);
   line-height: 1;
   letter-spacing: 0;
 }
@@ -915,8 +917,8 @@ section.card + section.card {
   border-radius: 3px;
   box-shadow: inset 0 0 0 2px var(--accent), 0 2px 8px rgba(31, 41, 51, 0.14);
   color: var(--tile-ink);
-  font-size: clamp(0.95rem, 3.4vw, 1.4rem);
-  font-weight: 800;
+  font-size: min(3.9cqw, 1.2rem);
+  font-weight: 500;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -932,7 +934,7 @@ section.card + section.card {
   bottom: 1px;
   z-index: 2;
   color: var(--tile-ink);
-  font-size: clamp(0.38rem, 1vw, 0.55rem);
+  font-size: min(1.5cqw, 0.5rem);
   font-weight: 600;
   line-height: 1;
 }
@@ -971,7 +973,7 @@ section.card + section.card {
   color: var(--tile-ink);
   border-radius: 4px;
   font: inherit;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1420,21 +1422,6 @@ section.card + section.card {
     border-width: 1px;
     touch-action: none;
     overflow: visible;
-  }
-
-  .cell .tile-letter,
-  .cell.board-drop-ghost::before {
-    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
-  }
-
-  .cell .tile-points {
-    right: 1px;
-    bottom: 0;
-    font-size: clamp(0.38rem, 1.4vw, 0.55rem);
-  }
-
-  .premium-label {
-    font-size: clamp(0.46rem, 2.15vw, 0.62rem);
   }
 
   .rack-area {

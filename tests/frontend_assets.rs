@@ -119,15 +119,9 @@ fn rack_recall_and_tile_text_styles_are_present() {
 #[test]
 fn board_labels_are_large_enough_on_mobile() {
     assert!(
-        css_rule_contains(
-            ".cell .tile-letter",
-            "font-size: clamp(0.95rem, 3.4vw, 1.4rem);"
-        ) && css_rule_contains(
-            ".premium-label",
-            "font-size: clamp(0.44rem, 1.3vw, 0.62rem);"
-        ) && css_rule_contains(".premium-label", "letter-spacing: 0;")
-            && APP_CSS
-                .contains(".premium-label {\n    font-size: clamp(0.46rem, 2.15vw, 0.62rem);"),
+        css_rule_contains(".cell .tile-letter", "font-size: min(3.9cqw, 1.2rem);")
+            && css_rule_contains(".premium-label", "font-size: min(1.8cqw, 0.62rem);")
+            && css_rule_contains(".premium-label", "letter-spacing: 0;"),
         "board tile and premium-square labels should be readable without overwhelming the squares",
     );
     assert!(
