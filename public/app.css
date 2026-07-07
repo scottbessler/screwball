@@ -1422,8 +1422,9 @@ section.card + section.card {
     overflow: visible;
   }
 
-  .cell .tile-letter {
-    font-size: clamp(0.95rem, 3.4vw, 1.4rem);
+  .cell .tile-letter,
+  .cell.board-drop-ghost::before {
+    font-size: clamp(1.05rem, 4.6vw, 1.5rem);
   }
 
   .cell .tile-points {
