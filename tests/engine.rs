@@ -6,8 +6,8 @@ use uuid::Uuid;
 use screwball::dict::Dictionary;
 use screwball::game::{GameOptions, MoveError, SeatSpec, apply_move, new_game, validate_play};
 use screwball::models::{
-    BINGO_BONUS, Board, Game, GameStatus, MoveKind, Placement, Position, SeatKind, Tile, WordRule,
-    is_jax_name, jax_names,
+    BINGO_BONUS, Board, Game, GameStatus, MoveKind, PlacedTile, Placement, Position, SeatKind,
+    Tile, WordRule, is_jax_name, jax_names,
 };
 
 fn dict() -> Dictionary {
@@ -352,6 +352,30 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         bingo_scored.points,
         bingo_scored.words[0].points + BINGO_BONUS
     );
+
+    // AUGUST formed only as a cross-word (not the main word along the placement
+    // line) earns no bonus: pre-place AUGUS down a column, then drop the T.
+    let mut cross_board = Board::new();
+    for (offset, ch) in "AUGUS".chars().enumerate() {
+        cross_board.set_tile(
+            Position::new(4 + offset, 7),
+            PlacedTile {
+                letter: ch,
+                is_blank: false,
+            },
+        );
+    }
+    let cross_scored = validate_play(
+        &cross_board,
+        &[letter('T')],
+        &dict,
+        &[place(9, 7, 'T')],
+        true,
+        WordRule::Standard,
+    )
+    .expect("completing AUGUST downward is legal");
+    assert_eq!(cross_scored.words[0].word, "AUGUST");
+    assert_eq!(cross_scored.points, cross_scored.words[0].points);
 }
 
 #[test]
