@@ -224,6 +224,7 @@ pub fn validate_play(
     }
 
     let mut words: Vec<Vec<Position>> = Vec::new();
+    let main_word = (main_run.len() >= 2).then(|| word_string(&scratch, &main_run));
     if main_run.len() >= 2 {
         words.push(main_run);
     }
@@ -278,9 +279,10 @@ pub fn validate_play(
         return Err(MoveError::InvalidWords(invalid));
     }
 
-    if placements.len() == RACK_SIZE
-        || (august_mode && scored.iter().any(|word| word.word == "AUGUST"))
-    {
+    // A bingo is worth 50: either all seven tiles were placed, or, in August
+    // Mode, the main word along the placement line is AUGUST.
+    let played_august = august_mode && main_word.as_deref() == Some("AUGUST");
+    if placements.len() == RACK_SIZE || played_august {
         total += BINGO_BONUS;
     }
 
