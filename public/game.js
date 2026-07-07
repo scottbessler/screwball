@@ -308,6 +308,7 @@ function Board({
   onDropTile,
   onMovePending,
   onRecallPending,
+  autoZoom,
 }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const boardRef = useRef(null);
@@ -316,6 +317,9 @@ function Board({
   const panRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef(null);
   const pendingDrag = useRef(null);
+  const autoZoomCenter = useRef(null);
+  const prevPendingLenRef = useRef(0);
+  const autoZoomTimer = useRef(null);
 
   function applyTransform() {
     if (!boardRef.current) return;
@@ -323,6 +327,39 @@ function Board({
     const { x, y } = panRef.current;
     boardRef.current.style.transform = s === 1 && x === 0 && y === 0
       ? "" : `translate(${x}px, ${y}px) scale(${s})`;
+  }
+
+  function animateBoardTo(s, x, y) {
+    const el = boardRef.current;
+    if (!el) return;
+    scaleRef.current = s;
+    panRef.current = { x, y };
+    el.style.transition = "transform 0.3s ease";
+    el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    clearTimeout(autoZoomTimer.current);
+    autoZoomTimer.current = setTimeout(() => {
+      const b = boardRef.current;
+      if (!b) return;
+      b.style.transition = "";
+      if (scaleRef.current === 1 && panRef.current.x === 0 && panRef.current.y === 0) {
+        b.style.transform = "";
+        b.style.transformOrigin = "";
+      }
+    }, 340);
+  }
+
+  function zoomToCell(row, col) {
+    const el = boardRef.current;
+    if (!el) return;
+    const s = SIZE / 9;
+    const W = el.offsetWidth;
+    const frac = (n) => 0.5 - (s * (n + 0.5)) / SIZE;
+    el.style.transformOrigin = "0 0";
+    animateBoardTo(s, W * frac(col), W * frac(row));
+  }
+
+  function resetZoom() {
+    animateBoardTo(1, 0, 0);
   }
 
   function handleBoardTouchStart(e) {
@@ -503,6 +540,34 @@ function Board({
   }
 
   useEffect(() => {
+    if (!autoZoom) return;
+    const prevLen = prevPendingLenRef.current;
+    const len = pending.length;
+    prevPendingLenRef.current = len;
+    if (len === 0) {
+      if (autoZoomCenter.current) {
+        autoZoomCenter.current = null;
+        resetZoom();
+      }
+      return;
+    }
+    if (len > prevLen) {
+      const newest = pending[pending.length - 1];
+      const c = autoZoomCenter.current;
+      if (!c) {
+        autoZoomCenter.current = { row: newest.row, col: newest.col };
+        zoomToCell(newest.row, newest.col);
+      } else if (
+        Math.abs(newest.row - c.row) >= 4 ||
+        Math.abs(newest.col - c.col) >= 4
+      ) {
+        autoZoomCenter.current = { row: newest.row, col: newest.col };
+        zoomToCell(newest.row, newest.col);
+      }
+    }
+  }, [pending, autoZoom]);
+
+  useEffect(() => {
     function onDocumentTouchMove(e) {
       if (pendingDrag.current) handleBoardTouchMove(e);
     }
@@ -519,6 +584,7 @@ function Board({
       document.removeEventListener("touchmove", onDocumentTouchMove);
       document.removeEventListener("touchend", onDocumentTouchEnd);
       document.removeEventListener("touchcancel", onDocumentTouchCancel);
+      clearTimeout(autoZoomTimer.current);
     };
   });
 
@@ -1622,7 +1688,7 @@ function JohnHint({ letter, grandpaMode }) {
   </p>`;
 }
 
-function App({ gameId, initial }) {
+function App({ gameId, initial, autoZoom }) {
   const [game, setGame] = useState(initial);
   const [pending, setPending] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -2226,6 +2292,7 @@ function App({ gameId, initial }) {
       onDropTile=${dropTileOnBoard}
       onMovePending=${movePending}
       onRecallPending=${recallByRackId}
+      autoZoom=${autoZoom}
     />`,
     !seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null,
   ]);
@@ -2434,10 +2501,11 @@ function boot() {
   const stateEl = document.getElementById("game-state");
   if (!mount || !stateEl) return;
   const initial = JSON.parse(stateEl.textContent);
+  const autoZoom = mount.dataset.autoZoom === "true";
   const fallback = document.getElementById("ssr-fallback");
   if (fallback) fallback.hidden = true;
   render(
-    html`<${App} gameId=${mount.dataset.gameId} initial=${initial} />`,
+    html`<${App} gameId=${mount.dataset.gameId} initial=${initial} autoZoom=${autoZoom} />`,
     mount,
   );
 

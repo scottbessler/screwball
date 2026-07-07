@@ -23,7 +23,15 @@ pub struct User {
     pub credentials: Vec<Passkey>,
     #[serde(default)]
     pub push_subscriptions: Vec<PushSubscription>,
+    #[serde(default)]
+    pub settings: UserSettings,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct UserSettings {
+    #[serde(default)]
+    pub auto_zoom: bool,
 }
 
 /// Browser Push API subscription persisted per user. This mirrors the
@@ -203,6 +211,7 @@ mod tests {
             display_name: username.to_string(),
             credentials: Vec::new(),
             push_subscriptions: Vec::new(),
+            settings: UserSettings::default(),
             created_at: Utc::now(),
         }
     }

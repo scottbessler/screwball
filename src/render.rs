@@ -154,6 +154,7 @@ pub fn home_page(
             r#"<section class="card account">
   <p class="muted">{greeting}</p>
   <a class="button new-game-link" href="/games/new">New game</a>
+  <a class="button button-secondary" href="/settings">Settings</a>
   <form method="post" action="/auth/logout">
     <button type="submit" class="button button-secondary">Sign out</button>
   </form>
@@ -179,6 +180,28 @@ pub fn new_game_page() -> String {
   <p class="muted"><a href="/">Back home</a></p>
 </section>"#,
             form = new_game_form(),
+        ),
+    )
+}
+
+pub fn settings_page(auto_zoom: bool) -> String {
+    layout(
+        "Settings — Screwball",
+        &format!(
+            r#"<section class="card">
+  <h1>Settings</h1>
+  <form method="post" action="/settings" class="form">
+    <div class="form-option-row">
+      <label class="checkbox-label" for="auto-zoom">
+        <input id="auto-zoom" type="checkbox" name="auto_zoom" value="on"{checked} />
+        <span>Auto-zoom</span>
+      </label>
+    </div>
+    <button type="submit" class="button">Save</button>
+  </form>
+  <p class="muted"><a href="/">Back home</a></p>
+</section>"#,
+            checked = if auto_zoom { " checked" } else { "" },
         ),
     )
 }
@@ -528,6 +551,7 @@ pub fn game_page(
     grandpa_two_letter_json: &str,
     other_games: &[GameSummary],
     logged_in: bool,
+    auto_zoom: bool,
 ) -> String {
     let board = render_board_squares(&view.board, &view.last_play);
     let scoreboard = render_scoreboard(view);
@@ -571,7 +595,7 @@ pub fn game_page(
     </div>
     <noscript><p class="muted">Enable JavaScript to place tiles and play.</p></noscript>
   </div>
-  <div id="game-island" data-game-id="{id}"></div>
+  <div id="game-island" data-game-id="{id}" data-auto-zoom="{auto_zoom}"></div>
   <script id="game-state" type="application/json">{initial_json}</script>
   <script id="two-letter-words" type="application/json">{two_letter_json}</script>
   <script id="grandpa-two-letter-words" type="application/json">{grandpa_two_letter_json}</script>

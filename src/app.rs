@@ -54,6 +54,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/login/begin", post(auth::login_begin))
         .route("/auth/login/finish", post(auth::login_finish))
         .route("/auth/logout", post(auth::logout))
+        .route(
+            "/settings",
+            get(routes::settings_page).post(routes::update_settings),
+        )
         .route("/games", post(routes::create_game))
         .route("/games/new", get(routes::new_game_page))
         .route("/api/my-games", get(routes::my_games))
