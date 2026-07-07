@@ -279,7 +279,7 @@ fn bingo_awards_fifty_point_bonus() {
 
 #[test]
 fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
-    let dict = Dictionary::from_words("AUGUST\nOAT\nAAAAAAA\n");
+    let dict = Dictionary::from_words("AUGUST\nOAT\nTA\nAAAAAAA\n");
 
     let august_board = Board::new();
     let august_rack = vec![
@@ -353,8 +353,8 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         bingo_scored.words[0].points + BINGO_BONUS
     );
 
-    // AUGUST formed only as a cross-word (not the main word along the placement
-    // line) earns no bonus: pre-place AUGUS down a column, then drop the T.
+    // A single-tile completion earns the bonus in either direction: pre-place
+    // AUGUS down a column, then drop the T.
     let mut cross_board = Board::new();
     for (offset, ch) in "AUGUS".chars().enumerate() {
         cross_board.set_tile(
@@ -375,7 +375,37 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
     )
     .expect("completing AUGUST downward is legal");
     assert_eq!(cross_scored.words[0].word, "AUGUST");
-    assert_eq!(cross_scored.points, cross_scored.words[0].points);
+    assert_eq!(
+        cross_scored.points,
+        cross_scored.words[0].points + BINGO_BONUS
+    );
+
+    // AUGUST formed only as a cross-word during a multi-tile play still does
+    // not earn the bonus: place TA horizontally so the vertical AUGUST is a
+    // cross-word, not the main word.
+    let mut multi_board = Board::new();
+    for (offset, ch) in "AUGUS".chars().enumerate() {
+        multi_board.set_tile(
+            Position::new(4 + offset, 7),
+            PlacedTile {
+                letter: ch,
+                is_blank: false,
+            },
+        );
+    }
+    let multi_scored = validate_play(
+        &multi_board,
+        &[letter('T'), letter('A')],
+        &dict,
+        &[place(9, 7, 'T'), place(9, 8, 'A')],
+        true,
+        WordRule::Standard,
+    )
+    .expect("completing TA horizontally is legal");
+    assert_ne!(multi_scored.words[0].word, "AUGUST");
+    assert!(multi_scored.words.iter().any(|word| word.word == "AUGUST"));
+    let total_word_points: u32 = multi_scored.words.iter().map(|word| word.points).sum();
+    assert_eq!(multi_scored.points, total_word_points);
 }
 
 #[test]
