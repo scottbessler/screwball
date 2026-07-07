@@ -32,6 +32,13 @@ test("home page, signed in", async ({ page }) => {
   await expect(page).toHaveScreenshot("home-signed-in.png", { fullPage: true });
 });
 
+test("settings page", async ({ page }) => {
+  await signIn(page, "scott");
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page).toHaveScreenshot("settings.png", { fullPage: true });
+});
+
 test("new game page", async ({ page }) => {
   await signIn(page, "scott");
   await page.goto("/games/new");
@@ -45,4 +52,45 @@ test("game page", async ({ page }) => {
   // Wait for the Preact island to hydrate (the rack renders client-side).
   await expect(page.locator(".rack .rack-tile").first()).toBeVisible();
   await expect(page).toHaveScreenshot("game.png", { fullPage: true });
+});
+
+test("game board zoomed", async ({ page }) => {
+  await signIn(page, "scott");
+  await page.goto("/settings");
+  await page.locator('input[name="auto_zoom"]').check();
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.goto(activeGameUrl());
+  await expect(page.locator("#game-island")).toHaveAttribute(
+    "data-auto-zoom",
+    "true",
+  );
+  await expect(page.locator(".rack .rack-tile").first()).toBeVisible();
+  const cell = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll(".board .cell:not(.tile)")];
+    const visible = cells.find((el) => {
+      const rect = el.getBoundingClientRect();
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.left < window.innerWidth &&
+        rect.top < window.innerHeight
+      );
+    });
+    if (!visible) throw new Error("no visible empty board cell found");
+    const rect = visible.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  });
+  await page.mouse.click(cell.x, cell.y);
+  await page.locator(".rack .rack-tile").first().click();
+  await expect(page.locator(".pending-cell")).toHaveCount(1);
+  await expect.poll(async () => {
+    return await page.locator(".board-wrap .board:visible").evaluate((el) => el.style.transform);
+  }).not.toBe("");
+  await page.waitForTimeout(700);
+  await expect(page).toHaveScreenshot("game-zoomed.png", { fullPage: true });
 });
