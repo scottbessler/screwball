@@ -2,6 +2,7 @@ const GAME_JS: &str = include_str!("../public/game.js");
 const APP_CSS: &str = include_str!("../public/app.css");
 const SW_JS: &str = include_str!("../public/sw.js");
 const NOTIFICATION_DEBUG_JS: &str = include_str!("../public/notification-debug.js");
+const SETTINGS_JS: &str = include_str!("../public/settings.js");
 const TOUCH_DEBUG_JS: &str = include_str!("../public/touch-debug.js");
 
 #[test]
@@ -541,9 +542,10 @@ fn web_push_notification_flow_is_wired() {
         "game page should register the service worker and persist push subscriptions",
     );
     assert!(
-        GAME_JS.contains("fetch(\"/api/push/vapid-public-key\")")
-            && GAME_JS.contains("Enable notifications"),
-        "game page should expose an opt-in notification flow",
+        SETTINGS_JS.contains("jsonFetch(\"/api/push/vapid-public-key\")")
+            && SETTINGS_JS.contains("Enable notifications")
+            && SETTINGS_JS.contains("jsonFetch(\"/api/push/subscribe\"")
+            && SETTINGS_JS.contains("notif-status"),
     );
     assert!(
         SW_JS.contains("self.addEventListener(\"push\"")

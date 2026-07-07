@@ -185,7 +185,7 @@ pub fn new_game_page() -> String {
 }
 
 pub fn settings_page(auto_zoom: bool) -> String {
-    layout(
+    layout_with_head(
         "Settings — Screwball",
         &format!(
             r#"<section class="card">
@@ -199,10 +199,20 @@ pub fn settings_page(auto_zoom: bool) -> String {
     </div>
     <button type="submit" class="button">Save</button>
   </form>
-  <p class="muted"><a href="/">Back home</a></p>
-</section>"#,
+</section>
+<section class="card">
+  <h2>Notifications</h2>
+  <p class="muted" id="notif-status">Checking…</p>
+  <button type="button" id="notif-enable" class="button button-secondary" hidden>Enable notifications</button>
+</section>
+<p class="muted"><a href="/">Back home</a></p>"#,
             checked = if auto_zoom { " checked" } else { "" },
         ),
+        &format!(
+            r#"<script type="module" src="{}" defer></script>"#,
+            asset("/public/settings.js")
+        ),
+        "",
     )
 }
 

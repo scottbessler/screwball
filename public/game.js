@@ -1741,6 +1741,40 @@ function JohnHint({ letter, grandpaMode }) {
   </p>`;
 }
 
+// The line (row/col + forced direction) that pending tiles constrain the
+// typing cursor to. null when there are no pending tiles.
+function pendingLine(pend) {
+  if (!pend.length) return null;
+  if (pend.length >= 2) {
+    const sameRow = pend.every((p) => p.row === pend[0].row);
+    const sameCol = pend.every((p) => p.col === pend[0].col);
+    if (sameRow) return { axis: "row", row: pend[0].row };
+    if (sameCol) return { axis: "col", col: pend[0].col };
+    return { axis: "invalid" };
+  }
+  return { axis: "single", row: pend[0].row, col: pend[0].col };
+}
+
+// Given a desired cursor cell, return {row,col,dir} legal w.r.t. pending
+// tiles, or null if the cell can't host the cursor.
+function constrainCursor(row, col, desiredDir, pend) {
+  const line = pendingLine(pend);
+  if (!line) return { row, col, dir: desiredDir };
+  if (line.axis === "row") {
+    return row === line.row ? { row, col, dir: "right" } : null;
+  }
+  if (line.axis === "col") {
+    return col === line.col ? { row, col, dir: "down" } : null;
+  }
+  if (line.axis === "single") {
+    if (row === line.row && col === line.col) return null;
+    if (row === line.row) return { row, col, dir: "right" };
+    if (col === line.col) return { row, col, dir: "down" };
+    return null;
+  }
+  return null;
+}
+
 function App({ gameId, initial, autoZoom }) {
   const [game, setGame] = useState(initial);
   const [pending, setPending] = useState([]);
@@ -1761,7 +1795,6 @@ function App({ gameId, initial, autoZoom }) {
     initial.hints_remaining || 0,
   );
   const [hintBusy, setHintBusy] = useState(false);
-  const [pushStatus, setPushStatus] = useState(() => notificationSupport());
 
   const yourTurn = isYourTurn(game);
   const seated = game.your_seat !== null && game.your_seat !== undefined;
@@ -1782,19 +1815,9 @@ function App({ gameId, initial, autoZoom }) {
   }, [yourTurn]);
 
   useEffect(() => {
-    let active = true;
     if (notificationSupport() === "granted") {
-      ensurePushNotifications()
-        .then((status) => {
-          if (active) setPushStatus(status);
-        })
-        .catch(() => {
-          if (active) setPushStatus("error");
-        });
+      ensurePushNotifications().catch(() => {});
     }
-    return () => {
-      active = false;
-    };
   }, []);
 
   useEffect(() => {
@@ -1895,6 +1918,16 @@ function App({ gameId, initial, autoZoom }) {
     return pend.some((p) => p.row === row && p.col === col);
   }
 
+  // First-tile heuristic: guess direction from adjacent committed board letters.
+  function guessDir(row, col) {
+    const has = (r, c) =>
+      r >= 0 && r < SIZE && c >= 0 && c < SIZE && !!game.board[idx(r, c)].letter;
+    const horiz = has(row, col - 1) || has(row, col + 1);
+    const vert = has(row - 1, col) || has(row + 1, col);
+    if (vert && !horiz) return "down";
+    return "right";
+  }
+
   // First empty square at or after (row,col) travelling in `dir`.
   function firstEmptyFrom(row, col, dir, pend) {
     let r = row;
@@ -1979,19 +2012,40 @@ function App({ gameId, initial, autoZoom }) {
 
   // Keyboard flow: manage the typing cursor on board clicks.
   function moveCursor(row, col) {
+    if (pending.length) {
+      const c = constrainCursor(row, col, cursor ? cursor.dir : "right", pending);
+      if (!c) {
+        setError("That square isn't in line with your pending tiles.");
+        return;
+      }
+      setCursor(c);
+      return;
+    }
     if (cursor && cursor.row === row && cursor.col === col) {
       setCursor({ row, col, dir: cursor.dir === "right" ? "down" : "right" });
       return;
     }
-    if (cursor && row === cursor.row && col === cursor.col + 1) {
-      setCursor({ row, col, dir: "right" });
-      return;
+    setCursor({ row, col, dir: guessDir(row, col) });
+  }
+
+  function arrowMoveCursor(dr, dc) {
+    if (!cursor) return;
+    let r = cursor.row + dr;
+    let c = cursor.col + dc;
+    while (r >= 0 && r < SIZE && c >= 0 && c < SIZE && occupiedAt(r, c, pending)) {
+      r += dr;
+      c += dc;
     }
-    if (cursor && col === cursor.col && row === cursor.row + 1) {
-      setCursor({ row, col, dir: "down" });
-      return;
-    }
-    setCursor({ row, col, dir: "right" });
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return;
+    const constrained = constrainCursor(r, c, cursor.dir, pending);
+    if (!constrained) return;
+    setCursor(constrained);
+  }
+
+  function toggleCursorDir() {
+    if (!cursor) return;
+    if (pending.length) return;
+    setCursor({ ...cursor, dir: cursor.dir === "right" ? "down" : "right" });
   }
 
   function onCellClick(row, col) {
@@ -2059,6 +2113,21 @@ function App({ gameId, initial, autoZoom }) {
     if (/^[a-zA-Z]$/.test(e.key)) {
       e.preventDefault();
       typeLetter(e.key.toUpperCase());
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      arrowMoveCursor(-1, 0);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      arrowMoveCursor(1, 0);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      arrowMoveCursor(0, -1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      arrowMoveCursor(0, 1);
+    } else if (e.key === " ") {
+      e.preventDefault();
+      toggleCursorDir();
     } else if (e.key === "Backspace") {
       e.preventDefault();
       backspace();
@@ -2310,36 +2379,12 @@ function App({ gameId, initial, autoZoom }) {
     (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
       ? rackTiles[selected].letter
       : null);
-  const notificationControl = seated && pushStatus !== "unsupported"
-    ? h("div", { class: "notification-controls" },
-        pushStatus === "enabled"
-          ? html`<span class="muted">Notifications on</span>`
-          : pushStatus === "denied"
-            ? html`<span class="muted">Notifications blocked</span>`
-            : h(
-                "button",
-                {
-                  type: "button",
-                  class: "button ghost",
-                  disabled: pushStatus === "enabling",
-                  onClick: async () => {
-                    setPushStatus("enabling");
-                    try {
-                      setPushStatus(await ensurePushNotifications({ prompt: true }));
-                    } catch {
-                      setPushStatus("error");
-                    }
-                  },
-                },
-                "Enable notifications",
-              ))
-    : null;
   const boardWrap = h("div", { class: "board-wrap" }, [
     html`<${Board}
       game=${game}
       pending=${pending}
       cursor=${yourTurn && mode === "place" ? cursor : null}
-      lastPlaySet=${lastPlaySet}
+      lastPlaySet=${pending.length ? null : lastPlaySet}
       onCellClick=${onCellClick}
       onPendingClick=${recallTile}
       onDropTile=${dropTileOnBoard}
@@ -2499,7 +2544,6 @@ function App({ gameId, initial, autoZoom }) {
           onClick: abandonGame,
         }, "Abandon game")
       : null}
-    ${notificationControl}
     <${OtherGames} gameId=${gameId} />
   </aside>`;
   const playColumn = h("div", { class: "play-column" }, [
