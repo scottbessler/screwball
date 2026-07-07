@@ -24,7 +24,7 @@ use crate::{
     app::AppState,
     error::AppError,
     session::{SESSION_COOKIE, session_cookie},
-    users::User,
+    users::{User, UserSettings},
 };
 
 /// Cookie holding the pending registration ceremony state.
@@ -122,6 +122,7 @@ pub async fn register_begin(
             display_name,
             credentials: vec![],
             push_subscriptions: Vec::new(),
+            settings: UserSettings::default(),
             created_at: Utc::now(),
         };
         let display_name = user.display_name.clone();
@@ -167,6 +168,7 @@ pub async fn register_finish(
         display_name: pending.display_name,
         credentials: vec![passkey],
         push_subscriptions: Vec::new(),
+        settings: UserSettings::default(),
         created_at: Utc::now(),
     };
     let display_name = user.display_name.clone();

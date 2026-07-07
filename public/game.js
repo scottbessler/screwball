@@ -308,6 +308,7 @@ function Board({
   onDropTile,
   onMovePending,
   onRecallPending,
+  autoZoom,
 }) {
   const byPos = new Map(pending.map((p) => [idx(p.row, p.col), p]));
   const boardRef = useRef(null);
@@ -316,13 +317,82 @@ function Board({
   const panRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef(null);
   const pendingDrag = useRef(null);
+  const autoEnteredRef = useRef(false);
+  const prevPendingLenRef = useRef(0);
+  const autoZoomTimer = useRef(null);
 
   function applyTransform() {
     if (!boardRef.current) return;
     const s = scaleRef.current;
     const { x, y } = panRef.current;
-    boardRef.current.style.transform = s === 1 && x === 0 && y === 0
-      ? "" : `translate(${x}px, ${y}px) scale(${s})`;
+    const el = boardRef.current;
+    if (s === 1 && x === 0 && y === 0) {
+      el.style.transform = "";
+      el.style.transformOrigin = "";
+      return;
+    }
+    el.style.transition = "";
+    el.style.transformOrigin = "0 0";
+    el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  }
+
+  function animateBoardTo(s, x, y) {
+    const el = boardRef.current;
+    if (!el) return;
+    scaleRef.current = s;
+    panRef.current = { x, y };
+    el.style.transformOrigin = "0 0";
+    el.style.transition = "transform 0.3s ease";
+    el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    clearTimeout(autoZoomTimer.current);
+    autoZoomTimer.current = setTimeout(() => {
+      const b = boardRef.current;
+      if (!b) return;
+      b.style.transition = "";
+      if (scaleRef.current === 1 && panRef.current.x === 0 && panRef.current.y === 0) {
+        b.style.transform = "";
+        b.style.transformOrigin = "";
+      }
+    }, 340);
+  }
+
+  function panForCell(scale, row, col) {
+    const el = boardRef.current;
+    if (!el) return null;
+    const W = el.offsetWidth;
+    const cx = ((col + 0.5) / SIZE) * W;
+    const cy = ((row + 0.5) / SIZE) * W;
+    return {
+      x: W / 2 - scale * cx,
+      y: W / 2 - scale * cy,
+      width: W,
+    };
+  }
+
+  function zoomToCell(row, col) {
+    const pan = panForCell(SIZE / 9, row, col);
+    if (!pan) return;
+    animateBoardTo(SIZE / 9, pan.x, pan.y);
+  }
+
+  function recenterOnCell(row, col) {
+    const pan = panForCell(scaleRef.current, row, col);
+    if (!pan) return;
+    animateBoardTo(scaleRef.current, pan.x, pan.y);
+  }
+
+  function boardOrigin() {
+    const el = boardRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: rect.left - panRef.current.x,
+      y: rect.top - panRef.current.y,
+    };
+  }
+
+  function resetZoom() {
+    animateBoardTo(1, 0, 0);
   }
 
   function handleBoardTouchStart(e) {
@@ -355,13 +425,14 @@ function Board({
       const dy = e.touches[1].clientY - e.touches[0].clientY;
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      const rect = boardRef.current.getBoundingClientRect();
-      const ox = ((midX - rect.left) / rect.width) * 100;
-      const oy = ((midY - rect.top) / rect.height) * 100;
-      boardRef.current.style.transformOrigin = `${ox}% ${oy}%`;
+      const origin = boardOrigin();
+      if (!origin) return;
       pinchState.current = {
         dist: Math.hypot(dx, dy),
         baseScale: scaleRef.current,
+        basePan: { ...panRef.current },
+        origin,
+        midpoint: { x: midX, y: midY },
       };
       panStartRef.current = null;
     } else if (e.touches.length === 1 && scaleRef.current > 1) {
@@ -433,7 +504,14 @@ function Board({
       const dist = Math.hypot(dx, dy);
       const ratio = dist / pinchState.current.dist;
       const newScale = Math.min(Math.max(pinchState.current.baseScale * ratio, 1), 3);
+      const { origin, midpoint, baseScale, basePan } = pinchState.current;
+      const localX = (midpoint.x - origin.x - basePan.x) / baseScale;
+      const localY = (midpoint.y - origin.y - basePan.y) / baseScale;
       scaleRef.current = newScale;
+      panRef.current = {
+        x: midpoint.x - origin.x - newScale * localX,
+        y: midpoint.y - origin.y - newScale * localY,
+      };
       applyTransform();
     } else if (e.touches.length === 1 && panStartRef.current && scaleRef.current > 1) {
       const dx = e.touches[0].clientX - panStartRef.current.x;
@@ -481,6 +559,7 @@ function Board({
         scaleRef.current = 1;
         panRef.current = { x: 0, y: 0 };
         if (boardRef.current) {
+          boardRef.current.style.transition = "";
           boardRef.current.style.transform = "";
           boardRef.current.style.transformOrigin = "";
         }
@@ -503,6 +582,44 @@ function Board({
   }
 
   useEffect(() => {
+    const prevLen = prevPendingLenRef.current;
+    const len = pending.length;
+    prevPendingLenRef.current = len;
+    if (len === 0) {
+      if (autoEnteredRef.current) {
+        autoEnteredRef.current = false;
+        resetZoom();
+      }
+      return;
+    }
+    if (len <= prevLen) return;
+    const newest = pending[pending.length - 1];
+    if (scaleRef.current === 1) {
+      if (!autoZoom) return;
+      autoEnteredRef.current = true;
+      zoomToCell(newest.row, newest.col);
+      return;
+    }
+    const pan = panForCell(scaleRef.current, newest.row, newest.col);
+    if (!pan) return;
+    const cellSize = (pan.width / SIZE) * scaleRef.current;
+    const centerX = panRef.current.x + scaleRef.current * (((newest.col + 0.5) / SIZE) * pan.width);
+    const centerY = panRef.current.y + scaleRef.current * (((newest.row + 0.5) / SIZE) * pan.width);
+    if (
+      centerX <= cellSize ||
+      centerX >= pan.width - cellSize ||
+      centerY <= cellSize ||
+      centerY >= pan.width - cellSize ||
+      centerX < 0 ||
+      centerX > pan.width ||
+      centerY < 0 ||
+      centerY > pan.width
+    ) {
+      recenterOnCell(newest.row, newest.col);
+    }
+  }, [pending, autoZoom]);
+
+  useEffect(() => {
     function onDocumentTouchMove(e) {
       if (pendingDrag.current) handleBoardTouchMove(e);
     }
@@ -519,6 +636,7 @@ function Board({
       document.removeEventListener("touchmove", onDocumentTouchMove);
       document.removeEventListener("touchend", onDocumentTouchEnd);
       document.removeEventListener("touchcancel", onDocumentTouchCancel);
+      clearTimeout(autoZoomTimer.current);
     };
   });
 
@@ -530,6 +648,7 @@ function Board({
       scaleRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       if (boardRef.current) {
+        boardRef.current.style.transition = "";
         boardRef.current.style.transform = "";
         boardRef.current.style.transformOrigin = "";
       }
@@ -1622,7 +1741,7 @@ function JohnHint({ letter, grandpaMode }) {
   </p>`;
 }
 
-function App({ gameId, initial }) {
+function App({ gameId, initial, autoZoom }) {
   const [game, setGame] = useState(initial);
   const [pending, setPending] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -2226,6 +2345,7 @@ function App({ gameId, initial }) {
       onDropTile=${dropTileOnBoard}
       onMovePending=${movePending}
       onRecallPending=${recallByRackId}
+      autoZoom=${autoZoom}
     />`,
     !seated && hasOpenSeat ? html`<${JoinForm} gameId=${gameId} />` : null,
   ]);
@@ -2434,10 +2554,11 @@ function boot() {
   const stateEl = document.getElementById("game-state");
   if (!mount || !stateEl) return;
   const initial = JSON.parse(stateEl.textContent);
+  const autoZoom = mount.dataset.autoZoom === "true";
   const fallback = document.getElementById("ssr-fallback");
   if (fallback) fallback.hidden = true;
   render(
-    html`<${App} gameId=${mount.dataset.gameId} initial=${initial} />`,
+    html`<${App} gameId=${mount.dataset.gameId} initial=${initial} autoZoom=${autoZoom} />`,
     mount,
   );
 

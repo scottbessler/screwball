@@ -121,7 +121,7 @@ fn board_labels_are_large_enough_on_mobile() {
     assert!(
         css_rule_contains(
             ".cell .tile-letter",
-            "font-size: clamp(0.78rem, 2.35vw, 1.12rem);"
+            "font-size: clamp(0.95rem, 3.4vw, 1.4rem);"
         ) && css_rule_contains(
             ".premium-label",
             "font-size: clamp(0.44rem, 1.3vw, 0.62rem);"

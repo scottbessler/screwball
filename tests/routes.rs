@@ -16,7 +16,7 @@ use screwball::{
     models::{Difficulty, Game, GameStatus, SeatKind},
     push::PushService,
     store::GameStore,
-    users::{User, UserStore},
+    users::{User, UserSettings, UserStore},
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -89,6 +89,7 @@ impl TestApp {
             display_name: display_name.to_string(),
             credentials: Vec::new(),
             push_subscriptions: Vec::new(),
+            settings: UserSettings::default(),
             created_at: chrono::Utc::now(),
         };
         let id = user.id;

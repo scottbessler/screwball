@@ -82,6 +82,19 @@ pub async fn new_game_page(AuthUser(_user): AuthUser) -> Html<String> {
     Html(render::new_game_page())
 }
 
+pub async fn settings_page(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Html<String>, AppError> {
+    let auto_zoom = state
+        .users
+        .get(user)
+        .await
+        .map(|u| u.settings.auto_zoom)
+        .unwrap_or(false);
+    Ok(Html(render::settings_page(auto_zoom)))
+}
+
 pub async fn service_worker() -> Response {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
@@ -109,6 +122,24 @@ pub struct CreateForm {
     august_mode: Option<String>,
     #[serde(default)]
     hints: Option<u8>,
+}
+
+#[derive(Deserialize)]
+pub struct SettingsForm {
+    #[serde(default)]
+    auto_zoom: Option<String>,
+}
+
+pub async fn update_settings(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Form(form): Form<SettingsForm>,
+) -> Result<Redirect, AppError> {
+    state
+        .users
+        .update(user, |u| u.settings.auto_zoom = form.auto_zoom.is_some())
+        .await?;
+    Ok(Redirect::to("/settings"))
 }
 
 pub async fn create_game(
@@ -203,6 +234,15 @@ pub async fn game_page(
         Some(user) => my_game_summaries(&state, user, Some(id)).await,
         None => Vec::new(),
     };
+    let auto_zoom = match user {
+        Some(u) => state
+            .users
+            .get(u)
+            .await
+            .map(|x| x.settings.auto_zoom)
+            .unwrap_or(false),
+        None => false,
+    };
     Ok(Html(render::game_page(
         &view,
         &initial,
@@ -210,6 +250,7 @@ pub async fn game_page(
         &grandpa_two_letter,
         &other_games,
         user.is_some(),
+        auto_zoom,
     )))
 }
 
