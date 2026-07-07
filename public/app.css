@@ -980,7 +980,7 @@ section.card + section.card {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.rack-tile .tile-letter { font-size: 1.1rem; }
+.rack-tile .tile-letter { font-size: 1.3rem; }
 
 .rack-tile .tile-points {
   position: absolute;
@@ -1257,7 +1257,7 @@ section.card + section.card {
   .sidebar { flex: 1 1 auto; width: 100%; min-width: 0; }
   .rack { gap: 0.3rem; }
   .rack-tile { width: 2rem; height: 2rem; }
-  .rack-tile .tile-letter { font-size: 0.95rem; }
+  .rack-tile .tile-letter { font-size: 1.1rem; }
   .controls .button { flex: 1 1 auto; text-align: center; }
   .letter-grid { grid-template-columns: repeat(6, 1fr); }
   .debug-grid { grid-template-columns: 1fr; }
@@ -1460,7 +1460,7 @@ section.card + section.card {
     user-select: none;
   }
 
-  .rack-tile .tile-letter { font-size: 1.05rem; }
+  .rack-tile .tile-letter { font-size: 1.3rem; }
 
   .rack-backspace-tile {
     display: flex;
