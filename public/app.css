@@ -881,7 +881,6 @@ section.card + section.card {
 
 .cell .tile-face.pending {
   background: var(--tile);
-  box-shadow: inset 0 0 0 2px var(--accent);
   color: var(--tile-ink);
   border-radius: 2px;
   cursor: pointer;
@@ -1606,6 +1605,20 @@ section.card + section.card {
 }
 
 .cell.tile.last-play::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: 3;
+  border: 2px solid var(--accent);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+.cell.pending-cell {
+  overflow: visible;
+}
+
+.cell.pending-cell::after {
   content: "";
   position: absolute;
   inset: -3px;
