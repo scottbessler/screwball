@@ -280,8 +280,12 @@ pub fn validate_play(
     }
 
     // A bingo is worth 50: either all seven tiles were placed, or, in August
-    // Mode, the main word along the placement line is AUGUST.
-    let played_august = august_mode && main_word.as_deref() == Some("AUGUST");
+    // Mode, the player played AUGUST. For a multi-tile play that means AUGUST is
+    // the main word along the placement line; a single tile has no unambiguous
+    // line, so completing AUGUST in either direction qualifies.
+    let played_august = august_mode
+        && (main_word.as_deref() == Some("AUGUST")
+            || (placements.len() == 1 && scored.iter().any(|word| word.word == "AUGUST")));
     if placements.len() == RACK_SIZE || played_august {
         total += BINGO_BONUS;
     }
