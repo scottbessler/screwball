@@ -810,7 +810,11 @@ fn render_board_squares(squares: &[SquareView], last_play: &[PositionView]) -> S
                     ""
                 };
                 let points = crate::models::letter_points(letter);
-                let shown = if square.is_blank { 0 } else { points };
+                let shown = if square.is_blank {
+                    String::new()
+                } else {
+                    points.to_string()
+                };
                 cells.push_str(&format!(
                     r#"<div class="cell tile{blank}{last}" data-row="{row}" data-col="{col}"><span class="tile-letter">{letter}</span><span class="tile-points">{shown}</span></div>"#,
                 ));

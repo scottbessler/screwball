@@ -225,7 +225,7 @@ function Tile({ letter, isBlank, points, pending, onClick }) {
     .join(" ");
   return html`<span class=${cls} onClick=${onClick}>
     <span class="tile-letter">${letter}</span>
-    <span class="tile-points">${points}</span>
+    <span class="tile-points">${isBlank ? "" : points}</span>
   </span>`;
 }
 
@@ -260,7 +260,7 @@ function Cell({
       onDragStart=${(e) => {
         setActiveDragPreview(
           pending.letter,
-          pointsFor(pending.letter, pending.isBlank),
+          pending.isBlank ? "" : pointsFor(pending.letter, pending.isBlank),
           pending.isBlank,
         );
         e.dataTransfer.setData("text/plain", "pending:" + pending.rackId);
@@ -411,7 +411,9 @@ function Board({
           ghost: null,
           boardDropLiftY: 0,
           letter: dragPending ? dragPending.letter : (letterEl ? letterEl.textContent : ""),
-          points: dragPending ? pointsFor(dragPending.letter, dragPending.isBlank) : "",
+          points: dragPending
+            ? (dragPending.isBlank ? "" : pointsFor(dragPending.letter, dragPending.isBlank))
+            : "",
           isBlank: dragPending ? dragPending.isBlank : false,
           highlightedCell: null,
           currentBoardCell: null,
@@ -1002,8 +1004,8 @@ function Rack({
       currentRackTarget: null,
       currentBoardCell: null,
       sourceEl: e.currentTarget,
-      letter: tile.is_blank ? "" : tile.letter,
-      points: pointsFor(tile.letter, tile.is_blank),
+      letter: tile.is_blank ? "?" : tile.letter,
+      points: tile.is_blank ? "" : pointsFor(tile.letter, tile.is_blank),
       isBlank: tile.is_blank,
     };
   }
@@ -1019,7 +1021,7 @@ function Rack({
       const tile = tiles.find((t) => t.id === touchState.current.id);
       const ghost = document.createElement("div");
       ghost.className = "rack-tile-ghost";
-      ghost.textContent = tile ? (tile.is_blank ? " " : tile.letter) : "";
+      ghost.textContent = tile ? (tile.is_blank ? "?" : tile.letter) : "";
       positionDragGhost(ghost, touch.clientX, touch.clientY);
       document.body.appendChild(ghost);
       touchState.current.boardDropLiftY = boardDropLiftPx();
@@ -1196,8 +1198,8 @@ function Rack({
           dragRackTarget.current = null;
           e.currentTarget.classList.add("dragging");
           setActiveDragPreview(
-            tile.is_blank ? "" : tile.letter,
-            pointsFor(tile.letter, tile.is_blank),
+            tile.is_blank ? "?" : tile.letter,
+            tile.is_blank ? "" : pointsFor(tile.letter, tile.is_blank),
             tile.is_blank,
           );
           e.dataTransfer.setData("text/plain", String(tile.id));
@@ -1235,8 +1237,8 @@ function Rack({
         onFocus=${() => onHover && onHover(tile.is_blank ? null : tile.letter)}
         onBlur=${() => onHover && onHover(null)}
       >
-        <span class="tile-letter">${tile.is_blank ? " " : tile.letter}</span>
-        <span class="tile-points">${pointsFor(tile.letter, tile.is_blank)}</span>
+        <span class="tile-letter">${tile.is_blank ? "?" : tile.letter}</span>
+        <span class="tile-points">${tile.is_blank ? "" : pointsFor(tile.letter, tile.is_blank)}</span>
       </button>`;
     })}
     ${showBackspace
