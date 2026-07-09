@@ -2375,10 +2375,7 @@ function App({ gameId, initial, autoZoom }) {
         onClick: requestHint,
       }, `Hint (${hintsRemaining})`)
     : null;
-  const johnLetter = hoverLetter ||
-    (selected != null && rackTiles[selected] && !rackTiles[selected].is_blank
-      ? rackTiles[selected].letter
-      : null);
+  const johnLetter = hoverLetter;
   const boardWrap = h("div", { class: "board-wrap" }, [
     html`<${Board}
       game=${game}
