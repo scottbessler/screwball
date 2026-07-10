@@ -15,6 +15,9 @@ const ALL_LETTERS: u32 = (1 << 26) - 1;
 /// Shortest word the board can form. The rule (e.g. Grandpa Mode) is applied
 /// later in validation, not during generation.
 const MIN_WORD_LEN: usize = 2;
+/// For Medium/Chill/Easy, keep the top spreadiest half of legal plays before
+/// applying the usual score-percentile selection. Hard and Impossible skip this.
+const SPREAD_FILTER_PERCENT: usize = 50;
 
 fn letter_index(letter: char) -> usize {
     (letter as u8 - b'A') as usize
@@ -257,6 +260,41 @@ pub fn generate_plays(board: &Board, rack: &[Tile], dict: &Dictionary) -> Vec<Ve
     out.into_iter().collect()
 }
 
+/// Center of mass of the currently occupied squares, or the board center if
+/// the board is empty. Used to reward plays that open the board away from the
+/// existing cluster.
+fn tile_center(board: &Board) -> Position {
+    let mut count = 0usize;
+    let mut sum_row = 0usize;
+    let mut sum_col = 0usize;
+    for row in 0..BOARD_SIZE {
+        for col in 0..BOARD_SIZE {
+            let pos = Position::new(row, col);
+            if board.is_occupied(pos) {
+                count += 1;
+                sum_row += row;
+                sum_col += col;
+            }
+        }
+    }
+    sum_row
+        .checked_div(count)
+        .zip(sum_col.checked_div(count))
+        .map(|(row, col)| Position::new(row, col))
+        .unwrap_or(CENTER)
+}
+
+/// How far the most adventurous newly placed tile is from the current center.
+/// A play with one tile far from the existing cluster gets a high score, which
+/// encourages the bot to open the board rather than pile on the same side.
+fn spread_score(center: Position, placements: &[Placement]) -> u32 {
+    placements
+        .iter()
+        .map(|p| p.position.row.abs_diff(center.row) + p.position.col.abs_diff(center.col))
+        .max()
+        .unwrap_or(0) as u32
+}
+
 /// A generated play validated and scored against the real board + rack.
 pub fn scored_plays(
     board: &Board,
@@ -306,11 +344,23 @@ pub fn choose_move(
         return MoveKind::Pass;
     }
 
-    plays.sort_by_key(|play| std::cmp::Reverse(play.1.points));
     let difficulty = match seat.kind {
         SeatKind::Bot { difficulty } => difficulty,
         SeatKind::Human { .. } => Difficulty::Medium,
     };
+
+    // Medium, Chill, and Easy should avoid piling on the existing cluster. Do
+    // a first pass that keeps the spreadiest half of legal plays before the
+    // usual score-percentile selection. Hard and Impossible stay purely greedy.
+    let filter_spread = !matches!(difficulty, Difficulty::Hard | Difficulty::Impossible);
+    if filter_spread {
+        let center = tile_center(&game.board);
+        plays.sort_by_key(|play| std::cmp::Reverse(spread_score(center, &play.0)));
+        let spread_keep = (plays.len() * SPREAD_FILTER_PERCENT).div_ceil(100).max(1);
+        plays.truncate(spread_keep);
+    }
+
+    plays.sort_by_key(|play| std::cmp::Reverse(play.1.points));
 
     // plays sorted highest-score-first (index 0 = best).
     let n = plays.len();
@@ -351,4 +401,70 @@ pub fn take_turn(
     }
     let kind = choose_move(game, dict, seat_index, rng);
     Some(apply_move(game, dict, seat_index, kind, rng))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{PlacedTile, Position};
+
+    #[test]
+    fn tile_center_defaults_to_center_on_empty_board() {
+        let board = Board::new();
+        assert_eq!(tile_center(&board), CENTER);
+    }
+
+    #[test]
+    fn tile_center_computes_average_of_occupied_squares() {
+        let mut board = Board::new();
+        board.set_tile(
+            Position::new(7, 10),
+            PlacedTile {
+                letter: 'A',
+                is_blank: false,
+            },
+        );
+        board.set_tile(
+            Position::new(7, 14),
+            PlacedTile {
+                letter: 'B',
+                is_blank: false,
+            },
+        );
+        assert_eq!(tile_center(&board), Position::new(7, 12));
+    }
+
+    #[test]
+    fn spread_score_prefers_tiles_far_from_center() {
+        let center = Position::new(7, 12);
+        let near = vec![Placement {
+            position: Position::new(7, 13),
+            letter: 'A',
+            is_blank: false,
+        }];
+        let far = vec![Placement {
+            position: Position::new(7, 4),
+            letter: 'A',
+            is_blank: false,
+        }];
+        assert!(spread_score(center, &far) > spread_score(center, &near));
+    }
+
+    #[test]
+    fn spread_score_uses_maximum_distance_among_placements() {
+        let center = Position::new(7, 7);
+        let mixed = vec![
+            Placement {
+                position: Position::new(7, 6),
+                letter: 'A',
+                is_blank: false,
+            },
+            Placement {
+                position: Position::new(7, 9),
+                letter: 'A',
+                is_blank: false,
+            },
+        ];
+        assert_eq!(spread_score(center, &mixed), 2);
+    }
 }
