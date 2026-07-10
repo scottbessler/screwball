@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, sync::Arc, time::Instant};
+use std::{borrow::Cow, env, net::SocketAddr, sync::Arc, time::Instant};
 
 use anyhow::{Context, Result};
 use axum::{
@@ -153,11 +153,18 @@ pub async fn run() -> Result<()> {
 
     crate::render::set_asset_version(asset_version());
 
-    let dict = Arc::new(Dictionary::load()?);
+    let dict_source: Cow<'static, str> = match env::var("DICTIONARY_PATH") {
+        Ok(path) if !path.is_empty() => std::fs::read_to_string(&path)
+            .with_context(|| format!("reading dictionary at {path}"))?
+            .into(),
+        _ => crate::dict::DEFAULT_WORDS.into(),
+    };
+
+    let dict = Arc::new(Dictionary::from_words(&dict_source));
     tracing::info!("loaded dictionary with {} words", dict.word_count());
 
     let data_path = env::var("DATA_PATH").unwrap_or_else(|_| "data".to_string());
-    let defs = Arc::new(DefinitionCache::load(&data_path).await);
+    let defs = Arc::new(DefinitionCache::from_words(&dict_source));
     let store = Arc::new(GameStore::load(&data_path).await?);
     let users = Arc::new(UserStore::load(&data_path).await?);
     tracing::info!("loaded {} registered users", users.count().await);

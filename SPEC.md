@@ -76,10 +76,11 @@ library). Passkey ceremonies use the browser's native WebAuthn API directly
 
 ## 5. Dictionary & move generation
 
-- Default word list: TWL06
-  (`https://github.com/kamilmielnik/scrabble-dictionaries`, `english/twl06.txt`),
-  bundled at build time. **Configurable** via env (`DICTIONARY_PATH` / a named
-  set) so SOWPODS/ENABLE/other languages can be dropped in.
+- Default word list: NWL2023
+  (`https://github.com/scrabblewords/scrabblewords`, `words/North-American/NWL2023.txt`),
+  bundled at build time. Its entries also provide word definitions for the move
+  log. **Configurable** via env (`DICTIONARY_PATH` / a named set) so
+  SOWPODS/ENABLE/other languages can be dropped in.
 - Built at startup into a **DAWG/GADDAG** rather than a plain `HashSet`: this
   gives O(word) validation *and* efficient legal-move enumeration for the bot
   (a `HashSet` can validate but can't generate moves cheaply). GADDAG is the
