@@ -1,20 +1,10 @@
-//! Word definitions: a cache backed by two free upstream APIs and a JSON
-//! snapshot on disk.
-//!
-//! dictionaryapi.dev is the primary source; Wiktionary's REST API is the
-//! fallback because it covers the obscure TWL06 Scrabble words (EUOI, VOZHD,
-//! QOPH, AALII, ...) that dictionaryapi.dev is missing.
+//! Word definitions: parsed from the bundled NWL2023 word list, which includes
+//! a short definition and part of speech for every valid word.
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::{HashMap, HashSet};
 
-use isahc::AsyncReadResponseExt;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Definition {
@@ -22,16 +12,9 @@ pub struct Definition {
     pub text: String,
 }
 
-/// Cache of `WORD -> definition`. `None` is a negative result (looked up, no
-/// definition) so we don't re-hit upstream within a run. Positive results are
-/// snapshotted to `<data>/definitions.json`; negatives are not, so they retry
-/// after a restart (self-healing if upstream later gains the word).
+/// Cache of `WORD -> definition` built from the bundled word list.
 pub struct DefinitionCache {
-    entries: RwLock<HashMap<String, Option<Definition>>>,
-    /// On-disk snapshot path, or `None` to disable persistence (tests).
-    path: Option<PathBuf>,
-    /// Serializes snapshot writes so concurrent saves don't clobber each other.
-    write_lock: Mutex<()>,
+    entries: RwLock<HashMap<String, Definition>>,
 }
 
 impl Default for DefinitionCache {
@@ -41,247 +24,307 @@ impl Default for DefinitionCache {
 }
 
 impl DefinitionCache {
-    /// Non-persistent cache (used by tests).
+    /// Non-persistent, empty cache (used by tests).
     pub fn new() -> Self {
         Self {
             entries: RwLock::new(HashMap::new()),
-            path: None,
-            write_lock: Mutex::new(()),
         }
     }
 
-    /// Load the snapshot under `<data_root>/definitions.json`, creating the
-    /// directory if needed. A missing or invalid file starts an empty cache.
-    pub async fn load(data_root: impl Into<PathBuf>) -> Self {
-        let root = data_root.into();
-        let _ = tokio::fs::create_dir_all(&root).await;
-        let path = root.join("definitions.json");
-        let entries = match tokio::fs::read_to_string(&path).await {
-            Ok(text) => serde_json::from_str::<HashMap<String, Definition>>(&text)
-                .map(|m| m.into_iter().map(|(k, v)| (k, Some(v))).collect())
-                .unwrap_or_else(|err| {
-                    tracing::warn!(error = %err, "ignoring invalid definitions cache");
-                    HashMap::new()
-                }),
-            Err(_) => HashMap::new(),
-        };
+    /// Build a cache from a newline-separated word list that may also carry
+    /// NWL2023-style definitions.
+    pub fn from_words(content: &str) -> Self {
         Self {
-            entries: RwLock::new(entries),
-            path: Some(path),
-            write_lock: Mutex::new(()),
+            entries: RwLock::new(parse_definitions(content)),
         }
     }
 
-    /// Look up `word`, fetching and caching on a miss. Words must be ASCII
-    /// alphabetic (callers validate); the upstream URL needs no escaping then.
+    /// Look up `word`. Words are normalized to uppercase ASCII.
     pub async fn lookup(&self, word: &str) -> Option<Definition> {
         let key = word.to_ascii_uppercase();
-        if let Some(hit) = self.entries.read().await.get(&key) {
-            return hit.clone();
-        }
-        // ponytail: concurrent misses for the same word may both fetch; the
-        // lookups are idempotent so the last write just wins. Add a per-key
-        // lock only if upstream rate limits bite.
-        let fetched = fetch_upstream(&key.to_ascii_lowercase()).await;
-        self.entries.write().await.insert(key, fetched.clone());
-        if fetched.is_some() {
-            self.snapshot().await;
-        }
-        fetched
+        self.entries.read().await.get(&key).cloned()
     }
 
-    /// Pre-fetch definitions for `words`, skipping any already cached. Run from
-    /// a background task after a move so the client's first lookup is a cache hit.
-    pub async fn warm(&self, words: &[String]) {
-        let mut added = false;
-        for word in words {
-            let key = word.to_ascii_uppercase();
-            if self.entries.read().await.contains_key(&key) {
-                continue;
-            }
-            let fetched = fetch_upstream(&key.to_ascii_lowercase()).await;
-            added |= fetched.is_some();
-            self.entries.write().await.insert(key, fetched);
-        }
-        if added {
-            self.snapshot().await;
-        }
-    }
-
-    /// Atomically write the positive entries to disk. Failures are logged, not
-    /// propagated — a cache write must never break gameplay.
-    /// ponytail: rewrites the whole file per new word. Fine at game scale;
-    /// switch to an append log if the cache ever grows into the thousands.
-    async fn snapshot(&self) {
-        let Some(path) = self.path.as_deref() else {
-            return;
-        };
-        let _guard = self.write_lock.lock().await;
-        let positives: HashMap<String, Definition> = {
-            let entries = self.entries.read().await;
-            entries
-                .iter()
-                .filter_map(|(k, v)| v.as_ref().map(|d| (k.clone(), d.clone())))
-                .collect()
-        };
-        if let Err(err) = write_atomic(path, &positives).await {
-            tracing::warn!(error = %err, "could not snapshot definitions cache");
-        }
-    }
+    /// Pre-fetch definitions for `words`. With the bundled list this is a no-op,
+    /// because every definition is already loaded.
+    pub async fn warm(&self, _words: &[String]) {}
 }
 
-async fn write_atomic(path: &Path, value: &HashMap<String, Definition>) -> std::io::Result<()> {
-    let bytes = serde_json::to_vec(value)?;
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or_default();
-    let tmp = path.with_extension(format!("json.tmp-{nanos}"));
-    tokio::fs::write(&tmp, bytes).await?;
-    tokio::fs::rename(&tmp, path).await
+#[derive(Clone)]
+struct Sense {
+    pos: String,
+    text: String,
+    xref: Option<String>,
 }
 
-/// `word` is lowercase ASCII alphabetic, so it needs no URL escaping.
-async fn fetch_upstream(word: &str) -> Option<Definition> {
-    let url = format!("https://api.dictionaryapi.dev/api/v2/entries/en/{word}");
-    if let Some(def) = get_json(&url).await.as_ref().and_then(parse_dictapi) {
-        return Some(def);
-    }
-    let url = format!("https://en.wiktionary.org/api/rest_v1/page/definition/{word}");
-    get_json(&url).await.as_ref().and_then(parse_wiktionary)
-}
+fn parse_definitions(content: &str) -> HashMap<String, Definition> {
+    let mut raw: HashMap<String, Vec<Sense>> = HashMap::new();
 
-async fn get_json(url: &str) -> Option<Value> {
-    let mut resp = isahc::get_async(url).await.ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    serde_json::from_str(&resp.text().await.ok()?).ok()
-}
-
-fn parse_dictapi(v: &Value) -> Option<Definition> {
-    let meaning = v.get(0)?.get("meanings")?.get(0)?;
-    let text = meaning
-        .get("definitions")?
-        .get(0)?
-        .get("definition")?
-        .as_str()?;
-    Some(Definition {
-        pos: meaning
-            .get("partOfSpeech")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
-        text: text.to_string(),
-    })
-}
-
-fn parse_wiktionary(v: &Value) -> Option<Definition> {
-    for entry in v.get("en")?.as_array()? {
-        let raw = entry
-            .get("definitions")
-            .and_then(|d| d.get(0))
-            .and_then(|d| d.get("definition"))
-            .and_then(Value::as_str);
-        let Some(raw) = raw else { continue };
-        let text = strip_html(raw);
-        if text.is_empty() {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
             continue;
         }
-        return Some(Definition {
-            pos: entry
-                .get("partOfSpeech")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_lowercase(),
-            text,
-        });
-    }
-    None
-}
-
-/// Strip HTML tags and decode the few entities Wiktionary emits.
-/// ponytail: naive char scan, not a real HTML parser — fine for tags + basic
-/// entities; upgrade only if upstream markup gets richer.
-fn strip_html(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut in_tag = false;
-    for ch in s.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(ch),
-            _ => {}
+        let Some((word, rest)) = line.split_once(char::is_whitespace) else {
+            continue;
+        };
+        let word = word.to_ascii_uppercase();
+        if word.len() < 2 {
+            continue;
+        }
+        let senses = parse_senses(rest.trim_start());
+        if !senses.is_empty() {
+            raw.insert(word, senses);
         }
     }
-    out.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .trim()
-        .to_string()
+
+    let mut memo: HashMap<String, Definition> = HashMap::with_capacity(raw.len());
+    for word in raw.keys().cloned().collect::<Vec<_>>() {
+        resolve_word(&word, &raw, &mut memo);
+    }
+
+    memo
+}
+
+fn parse_senses(rest: &str) -> Vec<Sense> {
+    rest.split(" / ")
+        .map(|s| s.split_once(':').map(|(a, _)| a).unwrap_or(s))
+        .filter_map(parse_sense)
+        .collect()
+}
+
+fn parse_sense(s: &str) -> Option<Sense> {
+    let s = s.trim();
+    let bracket = s.find('[')?;
+    let text = s[..bracket].trim();
+    let after = &s[bracket + 1..];
+    let pos_end = after
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(after.len());
+    let pos = expand_pos(&after[..pos_end]).to_string();
+    let (text, xref) = parse_xref(text);
+    let text = if xref.is_none() {
+        expand_markup(&text)
+    } else {
+        String::new()
+    };
+    Some(Sense { pos, text, xref })
+}
+
+fn parse_xref(text: &str) -> (String, Option<String>) {
+    let trimmed = text.trim_start();
+    if !trimmed.starts_with('<') {
+        return (text.to_string(), None);
+    }
+
+    let after_lt = &trimmed[1..].trim_start();
+
+    // "< WORD, definition" references a specific sense of another word.
+    if let Some((prefix, rest)) = after_lt.split_once(", ")
+        && prefix.chars().all(|c| c.is_ascii_alphabetic())
+    {
+        return (rest.trim_start().to_string(), None);
+    }
+
+    // "<word=pos>" is a cross-reference to another entry.
+    if let Some(gt) = trimmed.find('>') {
+        let inside = &trimmed[1..gt];
+        if let Some((word, _pos)) = inside.split_once('=') {
+            let word = word.trim();
+            if word.chars().all(|c| c.is_ascii_alphabetic()) {
+                return (String::new(), Some(word.to_ascii_uppercase()));
+            }
+        }
+    }
+
+    (text.to_string(), None)
+}
+
+fn expand_pos(pos: &str) -> &str {
+    if pos.eq_ignore_ascii_case("n") {
+        "noun"
+    } else if pos.eq_ignore_ascii_case("v") {
+        "verb"
+    } else if pos.eq_ignore_ascii_case("adj") {
+        "adjective"
+    } else if pos.eq_ignore_ascii_case("adv") {
+        "adverb"
+    } else if pos.eq_ignore_ascii_case("interj") {
+        "interjection"
+    } else if pos.eq_ignore_ascii_case("pron") {
+        "pronoun"
+    } else if pos.eq_ignore_ascii_case("prep") {
+        "preposition"
+    } else if pos.eq_ignore_ascii_case("conj") {
+        "conjunction"
+    } else if pos.eq_ignore_ascii_case("article") {
+        "article"
+    } else {
+        pos
+    }
+}
+
+fn expand_markup(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars();
+
+    while let Some(ch) = chars.next() {
+        let close = match ch {
+            '{' => '}',
+            '<' => '>',
+            _ => {
+                out.push(ch);
+                continue;
+            }
+        };
+
+        let mut content = String::new();
+        let mut found = false;
+        for c in chars.by_ref() {
+            if c == close {
+                found = true;
+                break;
+            }
+            content.push(c);
+        }
+        if !found {
+            continue;
+        }
+
+        let word = content
+            .split_once('=')
+            .map(|(w, _)| w)
+            .unwrap_or(&content)
+            .trim();
+        if word.eq_ignore_ascii_case("mdash") {
+            out.push('\u{2014}');
+        } else {
+            out.push_str(word);
+        }
+    }
+
+    out
+}
+
+fn resolve_word(
+    word: &str,
+    raw: &HashMap<String, Vec<Sense>>,
+    memo: &mut HashMap<String, Definition>,
+) -> Option<Definition> {
+    if let Some(def) = memo.get(word) {
+        return Some(def.clone());
+    }
+
+    resolve_word_inner(word, raw, memo, &mut HashSet::new())
+}
+
+fn resolve_word_inner(
+    word: &str,
+    raw: &HashMap<String, Vec<Sense>>,
+    memo: &mut HashMap<String, Definition>,
+    visiting: &mut std::collections::HashSet<String>,
+) -> Option<Definition> {
+    if let Some(def) = memo.get(word) {
+        return Some(def.clone());
+    }
+
+    let senses = raw.get(word)?;
+
+    if !visiting.insert(word.to_string()) {
+        return None;
+    }
+
+    let mut positions = Vec::new();
+    let mut texts = Vec::new();
+
+    for sense in senses {
+        if let Some(target) = &sense.xref {
+            if let Some(def) = resolve_word_inner(target, raw, memo, visiting) {
+                positions.push(def.pos.clone());
+                texts.push(def.text.clone());
+            } else {
+                positions.push(sense.pos.clone());
+                texts.push(target.clone());
+            }
+            continue;
+        }
+
+        if !sense.text.is_empty() {
+            positions.push(sense.pos.clone());
+            texts.push(sense.text.clone());
+        }
+    }
+
+    visiting.remove(word);
+
+    if texts.is_empty() {
+        return None;
+    }
+
+    let def = Definition {
+        pos: dedupe_join(&positions),
+        text: dedupe_join(&texts),
+    };
+    memo.insert(word.to_string(), def.clone());
+    Some(def)
+}
+
+fn dedupe_join(items: &[String]) -> String {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for item in items {
+        if seen.insert(item.as_str()) {
+            out.push(item.as_str());
+        }
+    }
+    out.join(" / ")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn strips_tags_and_entities() {
-        let html = "A <a href=\"/x\">Soviet</a> leader &amp; chief.\n";
-        assert_eq!(strip_html(html), "A Soviet leader & chief.");
+    #[tokio::test]
+    async fn nwl2023_definitions_parse() {
+        let cache = DefinitionCache::from_words(crate::dict::DEFAULT_WORDS);
+
+        let qi = cache.lookup("QI").await.unwrap();
+        assert_eq!(qi.pos, "noun");
+        assert!(qi.text.contains("vital force"));
+
+        let zzz = cache.lookup("ZZZ").await.unwrap();
+        assert_eq!(zzz.pos, "interjection");
+        assert!(zzz.text.contains("snoring"));
+
+        let go = cache.lookup("GO").await.unwrap();
+        assert!(go.pos.contains("noun"));
+        assert!(go.pos.contains("verb"));
+
+        let goes = cache.lookup("GOES").await.unwrap();
+        assert_eq!(goes.pos, "verb");
+        assert!(goes.text.contains("move along"));
+
+        let has = cache.lookup("HAS").await.unwrap();
+        assert!(has.pos.contains("noun"));
+        assert!(has.pos.contains("verb"));
+
+        assert!(cache.lookup("NOTAWORD").await.is_none());
     }
 
     #[test]
-    fn parses_dictapi_shape() {
-        let v: Value = serde_json::from_str(
-            r#"[{"meanings":[{"partOfSpeech":"noun","definitions":[{"definition":"a test"}]}]}]"#,
-        )
-        .unwrap();
-        let def = parse_dictapi(&v).unwrap();
-        assert_eq!(def.pos, "noun");
-        assert_eq!(def.text, "a test");
-    }
-
-    #[test]
-    fn parses_wiktionary_shape() {
-        let v: Value = serde_json::from_str(
-            r#"{"en":[{"partOfSpeech":"Noun","definitions":[{"definition":"A <a>Soviet</a> leader."}]}]}"#,
-        )
-        .unwrap();
-        let def = parse_wiktionary(&v).unwrap();
-        assert_eq!(def.pos, "noun");
-        assert_eq!(def.text, "A Soviet leader.");
+    fn expands_markup_and_pos() {
+        assert_eq!(expand_markup("a {protein=n}"), "a protein");
+        assert_eq!(
+            expand_markup("a woman or girl {mdash} usually"),
+            "a woman or girl \u{2014} usually"
+        );
+        assert_eq!(expand_pos("n"), "noun");
+        assert_eq!(expand_pos("adj"), "adjective");
     }
 
     #[tokio::test]
-    async fn snapshot_persists_positives_and_reloads() {
-        let dir = std::env::temp_dir().join(format!(
-            "screwball-defs-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let cache = DefinitionCache::load(&dir).await;
-        cache.entries.write().await.insert(
-            "QI".to_string(),
-            Some(Definition {
-                pos: "noun".into(),
-                text: "life force".into(),
-            }),
-        );
-        // Negatives must not be written.
-        cache.entries.write().await.insert("ZZ".to_string(), None);
-        cache.snapshot().await;
-
-        let reloaded = DefinitionCache::load(&dir).await;
-        let entries = reloaded.entries.read().await;
-        assert_eq!(
-            entries.get("QI").unwrap().as_ref().unwrap().text,
-            "life force"
-        );
-        assert!(!entries.contains_key("ZZ"));
+    async fn empty_cache_returns_none() {
+        let cache = DefinitionCache::new();
+        assert!(cache.lookup("QI").await.is_none());
     }
 }

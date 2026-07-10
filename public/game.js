@@ -1287,8 +1287,8 @@ function Scoreboard({ game }) {
   </table>`;
 }
 
-// Look up a word's definition from our server, which caches results and falls
-// back from dictionaryapi.dev to Wiktionary. Returns { pos, text } or null.
+// Look up a word's definition from our server, which serves definitions parsed
+// from the bundled NWL2023 word list. Returns { pos, text } or null.
 async function fetchDefinition(word) {
   const res = await fetch(
     `/api/define/${encodeURIComponent(word.toLowerCase())}`,

@@ -13,7 +13,7 @@ Early skeleton + game engine. Implemented so far:
 
 - Axum server, server-rendered home page, static assets, `/healthcheck`.
 - Game engine: board with standard premium squares, tile bag + English
-  distribution, dictionary (TWL06, configurable), move validation (placement,
+  distribution, dictionary (NWL2023, configurable), move validation (placement,
   contiguity, connectivity, word checks), scoring (premiums + bingo bonus),
   turn rotation for 2–4 seats, exchange/pass, and end-game scoring.
 
@@ -35,8 +35,10 @@ cargo run            # serves on http://localhost:8080
 PORT=3000 cargo run  # change the port
 ```
 
-The dictionary defaults to the bundled TWL06 word list. Override it with a path
-to any newline-separated word list:
+The dictionary defaults to the bundled NWL2023 word list, whose entries also
+supply the word definitions shown in the move log. Override it with a path to a
+newline-separated word list (definitions are optional, in the same NWL2023
+format):
 
 ```sh
 DICTIONARY_PATH=/path/to/words.txt cargo run

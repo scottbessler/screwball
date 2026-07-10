@@ -1,9 +1,5 @@
-use std::env;
-
-use anyhow::{Context, Result};
-
-/// The default bundled word list (TWL06). Swap at runtime via `DICTIONARY_PATH`.
-const DEFAULT_WORDS: &str = include_str!("../assets/dictionaries/twl06.txt");
+/// The default bundled word list (NWL2023). Swap at runtime via `DICTIONARY_PATH`.
+pub const DEFAULT_WORDS: &str = include_str!("../assets/dictionaries/NWL2023.txt");
 
 const ALPHABET: usize = 26;
 
@@ -33,26 +29,18 @@ pub struct Dictionary {
 }
 
 impl Dictionary {
-    /// Load the dictionary, preferring `DICTIONARY_PATH` then the bundled list.
-    pub fn load() -> Result<Self> {
-        match env::var("DICTIONARY_PATH") {
-            Ok(path) if !path.is_empty() => {
-                let contents = std::fs::read_to_string(&path)
-                    .with_context(|| format!("reading dictionary at {path}"))?;
-                Ok(Self::from_words(&contents))
-            }
-            _ => Ok(Self::from_words(DEFAULT_WORDS)),
-        }
-    }
-
     /// Build from newline-separated words; non-alphabetic entries are skipped.
+    ///
+    /// Each line may be a bare word or a word followed by whitespace and extra
+    /// metadata (e.g. the bundled NWL2023 definitions). Only the first token is
+    /// used as the word.
     pub fn from_words(contents: &str) -> Self {
         let mut dict = Self {
             nodes: vec![Node::default()],
             word_count: 0,
         };
         for line in contents.lines() {
-            let word = line.trim();
+            let word = line.split_whitespace().next().unwrap_or("");
             if word.len() >= 2 {
                 dict.insert(word);
             }
