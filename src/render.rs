@@ -3,7 +3,9 @@ use std::sync::OnceLock;
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
-use crate::view::{GameSummary, GameView, PositionView, SquareView, premium_code};
+use crate::view::{
+    GameSummary, GameView, PositionView, SquareView, effective_updated_at, premium_code,
+};
 
 /// Content-hash of the static assets, set once at startup for release builds.
 /// Debug builds hash each asset at render time so local edits do not keep
@@ -465,19 +467,29 @@ fn new_game_form() -> String {
 }
 
 fn game_list(games: &[Game], current: Uuid) -> String {
-    let mut active = String::new();
-    for game in games
+    let mut active_games: Vec<&Game> = games
         .iter()
         .filter(|game| game.status != GameStatus::Finished)
-    {
+        .collect();
+    active_games.sort_by(|a, b| {
+        is_current_turn(b, current)
+            .cmp(&is_current_turn(a, current))
+            .then(effective_updated_at(b).cmp(&effective_updated_at(a)))
+    });
+
+    let mut active = String::new();
+    for game in active_games {
         active.push_str(&game_list_item(game, current));
     }
 
-    let mut finished = String::new();
-    for game in games
+    let mut finished_games: Vec<&Game> = games
         .iter()
         .filter(|game| game.status == GameStatus::Finished)
-    {
+        .collect();
+    finished_games.sort_by_key(|game| std::cmp::Reverse(effective_updated_at(game)));
+
+    let mut finished = String::new();
+    for game in finished_games {
         finished.push_str(&game_list_item(game, current));
     }
 

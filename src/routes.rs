@@ -254,7 +254,7 @@ pub async fn game_page(
     )))
 }
 
-/// The viewer's games sorted active-first then most-recently-updated-first,
+/// The viewer's games sorted your-turn-first then most-recently-moved-first,
 /// optionally excluding one game id, each flagged with whether it is the
 /// viewer's turn.
 async fn my_game_summaries(
@@ -271,8 +271,8 @@ async fn my_game_summaries(
         .filter_map(|game| GameSummary::for_viewer(game, user))
         .collect();
     summaries.sort_by(|a, b| {
-        b.is_active
-            .cmp(&a.is_active)
+        b.your_turn
+            .cmp(&a.your_turn)
             .then(b.effective_updated_at.cmp(&a.effective_updated_at))
     });
     summaries
