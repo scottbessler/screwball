@@ -7,6 +7,14 @@ use crate::models::{
     Tile,
 };
 
+pub fn effective_updated_at(game: &Game) -> DateTime<Utc> {
+    if game.updated_at == DateTime::<Utc>::default() {
+        game.created_at
+    } else {
+        game.updated_at
+    }
+}
+
 /// A game serialized for a specific viewer: other players' racks and the bag
 /// contents are redacted to tile counts only.
 #[derive(Serialize)]
@@ -186,11 +194,7 @@ impl GameSummary {
             .iter()
             .position(|seat| seat_user(seat) == Some(viewer))?;
         let is_active = game.status != GameStatus::Finished;
-        let effective_updated_at = if game.updated_at == DateTime::<Utc>::default() {
-            game.created_at
-        } else {
-            game.updated_at
-        };
+        let effective_updated_at = effective_updated_at(game);
         Some(Self {
             id: game.id,
             players: game.seats.iter().map(|seat| seat.name.clone()).collect(),
