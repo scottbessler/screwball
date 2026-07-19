@@ -1073,6 +1073,22 @@ section.card + section.card {
   cursor: not-allowed;
 }
 
+.button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:focus-visible,
+.rack-tile:focus-visible,
+.letter-btn:focus-visible,
+.word-def:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .move-error {
   margin: 0.5rem 0 0;
   color: var(--accent);
@@ -1155,6 +1171,15 @@ section.card + section.card {
   font: inherit;
 }
 
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* Blank-tile picker modal */
 .modal-backdrop {
@@ -1626,6 +1651,36 @@ section.card + section.card {
   border: 2px solid var(--accent);
   border-radius: 5px;
   pointer-events: none;
+}
+
+.bag-low {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.bingo-note {
+  margin: 0.35rem 0 0;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.show-all-moves {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.game-list-time {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .hint-btn {

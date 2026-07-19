@@ -1300,6 +1300,7 @@ async function fetchDefinition(word) {
 function MoveLog({ game }) {
   // word (uppercase) -> { loading, def } network cache, shared across entries.
   const [defs, setDefs] = useState({});
+  const [showAll, setShowAll] = useState(false);
   // Set of "moveIndex:WORD" entries whose definition is expanded — scoped per
   // log row so the same word in two rows doesn't toggle both.
   const [open, setOpen] = useState(() => new Set());
@@ -1330,7 +1331,8 @@ function MoveLog({ game }) {
   if (!game.moves.length) {
     return html`<p class="muted">No moves yet.</p>`;
   }
-  const recent = game.moves.slice(-10).toReversed();
+  const recent = (showAll ? game.moves.slice() : game.moves.slice(-10)).toReversed();
+  const hiddenCount = game.moves.length - recent.length;
   return html`<ul class="move-log">
     ${recent.map((mv, n) => {
       const absIdx = game.moves.length - 1 - n;
@@ -1380,7 +1382,16 @@ function MoveLog({ game }) {
       }
       return html`<li key=${absIdx}><strong>${name}</strong>: ${detail}</li>`;
     })}
-  </ul>`;
+  </ul>
+  ${hiddenCount > 0
+    ? html`<button type="button" class="show-all-moves" onClick=${() => setShowAll(true)}>
+        Show all ${game.moves.length} moves
+      </button>`
+    : showAll && game.moves.length > 10
+      ? html`<button type="button" class="show-all-moves" onClick=${() => setShowAll(false)}>
+          Show recent moves
+        </button>`
+      : null}`;
 }
 
 function Results({ game }) {
@@ -1442,8 +1453,8 @@ function BlankPicker({ onPick, onCancel }) {
   }, [onPick, onCancel]);
 
   return html`<div class="modal-backdrop" onClick=${onCancel}>
-    <div class="modal" onClick=${(e) => e.stopPropagation()}>
-      <h2>Choose a letter</h2>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="blank-picker-title" onClick=${(e) => e.stopPropagation()}>
+      <h2 id="blank-picker-title">Choose a letter</h2>
       <p class="muted">Pick the letter this blank tile represents.</p>
       <div class="letter-grid">
         ${LETTERS.map(
@@ -1631,6 +1642,14 @@ function updateTurnAffordances() {
   turnAffordanceCount = count;
   setFavicon(count > 0);
   setAppBadge(count);
+  setTitleBadge(count);
+}
+
+let baseTitle = null;
+
+function setTitleBadge(count) {
+  if (baseTitle === null) baseTitle = document.title;
+  document.title = count > 0 ? `(${count}) ${baseTitle}` : baseTitle;
 }
 
 function setAppBadge(count) {
@@ -2448,7 +2467,8 @@ function App({ gameId, initial, autoZoom }) {
       h("button", {
         type: "button",
         class: "button ghost",
-        disabled: busy,
+        disabled: busy || game.bag_count < 7,
+        title: game.bag_count < 7 ? "Fewer than 7 tiles left in the bag" : undefined,
         onClick: enterExchange,
       }, "Swap"),
       h("button", {
@@ -2469,7 +2489,8 @@ function App({ gameId, initial, autoZoom }) {
       h("button", {
         type: "button",
         class: "button ghost",
-        disabled: busy,
+        disabled: busy || game.bag_count < 7,
+        title: game.bag_count < 7 ? "Fewer than 7 tiles left in the bag" : undefined,
         onClick: enterExchange,
       }, "Swap"),
       h("button", {
@@ -2503,9 +2524,14 @@ function App({ gameId, initial, autoZoom }) {
               onHover=${game.john_mode ? setHoverLetter : null}
             />`
           : null,
-        error ? html`<p class="move-error">${error}</p>` : null,
+        error ? html`<p class="move-error" role="alert">${error}</p>` : null,
+        pending.length === 7 && pendingScore != null
+          ? html`<p class="bingo-note">Bingo! +50 bonus included</p>`
+          : null,
         controls,
-        hintsEnabled && hintResult ? html`<p class="hint-result">${hintResult}</p>` : null,
+        hintsEnabled && hintResult
+          ? html`<p class="hint-result" role="status" aria-live="polite">${hintResult}</p>`
+          : null,
         !finished && game.john_mode
           ? h(
               "div",
@@ -2531,7 +2557,9 @@ function App({ gameId, initial, autoZoom }) {
       ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
     <${Scoreboard} game=${game} />
-    <p class="muted">Tiles in bag: ${game.bag_count}</p>
+    <p class=${game.bag_count > 0 && game.bag_count < 7 ? "muted bag-low" : "muted"}>
+      Tiles in bag: ${game.bag_count}
+    </p>
     <${MoveLog} game=${game} />
     ${seated && !finished
       ? h("button", {

@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
@@ -526,9 +527,11 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
         r#"<li class="{item_class}">
   <a href="/games/{id}">{players}</a>
   <span class="game-list-status muted">{status}</span>{badge}
+  <span class="game-list-time muted">{time}</span>
 </li>"#,
         id = game.id,
         players = players.join(" vs "),
+        time = relative_time(effective_updated_at(game)),
     )
 }
 
@@ -555,6 +558,17 @@ fn open_game_list_item(game: &Game) -> String {
         id = game.id,
         players = players.join(" vs "),
     )
+}
+
+/// A coarse human-readable age for a game's last activity, e.g. "3h ago".
+fn relative_time(then: DateTime<Utc>) -> String {
+    let seconds = (Utc::now() - then).num_seconds().max(0);
+    match seconds {
+        0..=59 => "just now".to_string(),
+        60..=3599 => format!("{}m ago", seconds / 60),
+        3600..=86399 => format!("{}h ago", seconds / 3600),
+        _ => format!("{}d ago", seconds / 86400),
+    }
 }
 
 fn is_current_turn(game: &Game, current: Uuid) -> bool {
