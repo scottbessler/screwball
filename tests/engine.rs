@@ -126,8 +126,13 @@ fn grandpa_mode_allows_common_two_letter_words() {
 
 #[test]
 fn jax_mode_allows_top_names_not_in_dictionary() {
-    assert_eq!(jax_names().count(), 508);
+    assert_eq!(jax_names().count(), 513);
     assert!(is_jax_name("JAX"));
+    assert!(is_jax_name("ADIEL"));
+    assert!(is_jax_name("ALON"));
+    assert!(is_jax_name("BENAYA"));
+    assert!(is_jax_name("SHAHKED"));
+    assert!(is_jax_name("SELAH"));
 
     let names_without_olivia = Dictionary::from_words("AT\nTO\nCAT\n");
     let board = Board::new();
