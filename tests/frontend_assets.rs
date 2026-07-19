@@ -271,7 +271,7 @@ fn mobile_touch_drop_target_is_separate_from_dragged_tile() {
 #[test]
 fn last_play_highlight_sits_outside_tile_content() {
     assert!(
-        GAME_JS.contains("const cls = lastPlay ? \"cell tile last-play\" : \"cell tile\"")
+        GAME_JS.contains("\"cell tile\",\n      lastPlay ? \"last-play\" : \"\",")
             && !GAME_JS.contains("lastPlay=${lp}")
             && !APP_CSS.contains(".cell .tile-face.last-play"),
         "last-play class should be on the board cell, not inside the tile face",

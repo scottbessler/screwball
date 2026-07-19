@@ -34,6 +34,8 @@ pub enum MoveError {
     FirstMoveMustCoverCenter,
     NotConnected,
     NoWordFormed,
+    MimiWrongLetter,
+    MimiSwapNeedsWord,
     InvalidWords(Vec<String>),
     DisallowedWords(Vec<String>),
     CannotExchange,
@@ -58,6 +60,15 @@ impl fmt::Display for MoveError {
             MoveError::NotConnected => write!(f, "the play must connect to existing tiles"),
             MoveError::NoWordFormed => {
                 write!(f, "the play must form a word of two or more letters")
+            }
+            MoveError::MimiWrongLetter => {
+                write!(f, "that blank stands for a different letter")
+            }
+            MoveError::MimiSwapNeedsWord => {
+                write!(
+                    f,
+                    "a blank swap must be part of a word that places new tiles"
+                )
             }
             MoveError::InvalidWords(words) => write!(f, "not in dictionary: {}", words.join(", ")),
             MoveError::DisallowedWords(words) => {
@@ -99,6 +110,7 @@ pub struct GameOptions {
     pub shelli_mode: bool,
     pub scott_mode: bool,
     pub august_mode: bool,
+    pub mimi_mode: bool,
     pub hints_allowed: u8,
 }
 
@@ -139,6 +151,7 @@ pub fn new_game(seats: Vec<SeatSpec>, options: GameOptions, rng: &mut impl Rng) 
         shelli_mode: options.shelli_mode,
         scott_mode: options.scott_mode,
         august_mode: options.august_mode,
+        mimi_mode: options.mimi_mode,
         hints_allowed: options.hints_allowed,
         hints_used: vec![0; seat_count],
     }
@@ -151,12 +164,16 @@ pub fn validate_play(
     dict: &Dictionary,
     placements: &[Placement],
     august_mode: bool,
+    mimi_mode: bool,
     rule: WordRule,
 ) -> Result<ScoredPlay, MoveError> {
     if placements.is_empty() {
         return Err(MoveError::EmptyPlay);
     }
 
+    // Mimi Mode: a placement may target a square holding a blank if it supplies
+    // the real letter the blank stands for; the blank is returned to the rack.
+    let mut swap_set: HashSet<Position> = HashSet::new();
     let mut seen = HashSet::new();
     for placement in placements {
         if !placement.position.in_bounds() {
@@ -165,9 +182,18 @@ pub fn validate_play(
         if !seen.insert(placement.position) {
             return Err(MoveError::DuplicatePosition);
         }
-        if board.is_occupied(placement.position) {
-            return Err(MoveError::SquareOccupied);
+        if let Some(existing) = board.tile_at(placement.position) {
+            if !mimi_mode || !existing.is_blank || placement.is_blank {
+                return Err(MoveError::SquareOccupied);
+            }
+            if existing.letter != placement.position_letter() {
+                return Err(MoveError::MimiWrongLetter);
+            }
+            swap_set.insert(placement.position);
         }
+    }
+    if swap_set.len() == placements.len() {
+        return Err(MoveError::MimiSwapNeedsWord);
     }
 
     check_rack_has_tiles(rack, placements)?;
@@ -210,12 +236,19 @@ pub fn validate_play(
         ((0, 1), (1, 0))
     };
 
-    let placed_set: HashSet<Position> = placements.iter().map(|p| p.position).collect();
+    // Swapped squares are not "new" tiles: they don't re-trigger premiums,
+    // don't form cross words, and count as existing tiles for connectivity.
+    let placed_set: HashSet<Position> = placements
+        .iter()
+        .map(|p| p.position)
+        .filter(|pos| !swap_set.contains(pos))
+        .collect();
+    let all_positions: HashSet<Position> = placements.iter().map(|p| p.position).collect();
 
     // Contiguity: every placed tile must sit within the single main-axis run.
     let main_run = collect_run(&scratch, placements[0].position, main_dir);
     let main_cells: HashSet<Position> = main_run.iter().copied().collect();
-    if !placed_set.iter().all(|pos| main_cells.contains(pos)) {
+    if !all_positions.iter().all(|pos| main_cells.contains(pos)) {
         return Err(MoveError::NotContiguous);
     }
 
@@ -229,6 +262,9 @@ pub fn validate_play(
         words.push(main_run);
     }
     for placement in placements {
+        if swap_set.contains(&placement.position) {
+            continue;
+        }
         let cross = collect_run(&scratch, placement.position, cross_dir);
         if cross.len() >= 2 {
             words.push(cross);
@@ -388,6 +424,7 @@ pub fn apply_move(
                 dict,
                 &placements,
                 game.august_mode,
+                game.mimi_mode,
                 rule,
             )?;
             let best = if game.scott_mode && !is_bot {
@@ -409,8 +446,18 @@ pub fn apply_move(
                 };
                 remove_tile(&mut game.seats[seat_index].rack, needed);
             }
+            // Mimi Mode: placements onto occupied squares swap the real letter
+            // in for a blank, which returns to the rack.
+            let swapped_blanks = scored
+                .placed
+                .iter()
+                .filter(|(pos, _)| game.board.is_occupied(*pos))
+                .count();
             for &(pos, tile) in &scored.placed {
                 game.board.set_tile(pos, tile);
+            }
+            for _ in 0..swapped_blanks {
+                game.seats[seat_index].rack.push(Tile::Blank);
             }
             refill_rack(&mut game.seats[seat_index].rack, &mut game.bag);
             game.seats[seat_index].score += scored.points as i32;

@@ -49,6 +49,7 @@ fn bot_game(racks: &[&str], difficulty: Difficulty) -> Game {
         shelli_mode: false,
         scott_mode: false,
         august_mode: false,
+        mimi_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; racks.len()],
     }
@@ -67,6 +68,7 @@ fn generates_first_move_through_center() {
                 &rack("COATSXY"),
                 &dict(),
                 placements,
+                false,
                 false,
                 WordRule::Standard
             )
@@ -87,6 +89,7 @@ fn hard_bot_picks_a_scoring_play() {
                 &game.seats[0].rack,
                 &dict(),
                 &placements,
+                false,
                 false,
                 WordRule::Standard,
             )
@@ -124,6 +127,7 @@ fn impossible_bot_picks_the_top_play() {
             &dict(),
             &placements,
             false,
+            false,
             WordRule::Standard,
         )
         .expect("legal");
@@ -152,6 +156,7 @@ fn every_difficulty_produces_a_legal_play() {
                 &game.seats[0].rack,
                 &dict(),
                 &placements,
+                false,
                 false,
                 WordRule::Standard,
             )

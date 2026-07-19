@@ -107,9 +107,12 @@ function previewScore(game, pending) {
   const at = (r, c) => {
     if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return null;
     const sq = game.board[idx(r, c)];
-    if (sq.letter) return { letter: sq.letter, isBlank: sq.is_blank, premium: sq.premium, placed: false };
     const p = placed.get(idx(r, c));
-    return p ? { letter: p.letter, isBlank: p.isBlank, premium: sq.premium, placed: true } : null;
+    // A Mimi swap scores its real letter but is not "newly placed": no
+    // premium re-trigger.
+    if (p) return { letter: p.letter, isBlank: p.isBlank, premium: sq.premium, placed: !p.isSwap };
+    if (sq.letter) return { letter: sq.letter, isBlank: sq.is_blank, premium: sq.premium, placed: false };
+    return null;
   };
   const run = ([sr, sc], [dr, dc]) => {
     let r = sr, c = sc;
@@ -130,6 +133,7 @@ function previewScore(game, pending) {
   const m = run(head, main);
   if (m.length >= 2) words.push(m);
   for (const p of pending) {
+    if (p.isSwap) continue;
     const x = run([p.row, p.col], cross);
     if (x.length >= 2) words.push(x);
   }
@@ -161,7 +165,11 @@ function previewScore(game, pending) {
 // existing tile.
 function placementLegal(game, pending) {
   if (!pending.length) return false;
+  if (pending.every((p) => p.isSwap)) return false;
   const placedSet = new Set(pending.map((p) => idx(p.row, p.col)));
+  const newSet = new Set(
+    pending.filter((p) => !p.isSwap).map((p) => idx(p.row, p.col)),
+  );
   const occupied = (r, c) => {
     if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return false;
     return Boolean(game.board[idx(r, c)].letter) || placedSet.has(idx(r, c));
@@ -190,6 +198,7 @@ function placementLegal(game, pending) {
   const words = [];
   if (mainRun.length >= 2) words.push(mainRun);
   for (const p of pending) {
+    if (p.isSwap) continue;
     const x = run([p.row, p.col], cross);
     if (x.length >= 2) words.push(x);
   }
@@ -197,11 +206,19 @@ function placementLegal(game, pending) {
   const boardEmpty = game.board.every((sq) => !sq.letter);
   if (boardEmpty) return placedSet.has(idx(CENTER, CENTER));
   // Must connect to an existing tile: some word cell isn't newly placed.
-  return words.some((cells) => cells.some(([r, c]) => !placedSet.has(idx(r, c))));
+  return words.some((cells) => cells.some(([r, c]) => !newSet.has(idx(r, c))));
 }
 
 function isActive(game) {
   return game.status === "Active";
+}
+
+// Mimi Mode: a committed blank square that `tile` (a real letter from the
+// rack) may replace, reclaiming the blank.
+function isSwapTarget(game, tile, row, col) {
+  if (!game.mimi_mode || !tile || tile.is_blank) return false;
+  const sq = game.board[idx(row, col)];
+  return Boolean(sq.letter) && sq.is_blank && sq.letter === tile.letter;
 }
 
 function isYourTurn(game) {
@@ -236,14 +253,23 @@ function Cell({
   col,
   cursor,
   lastPlay,
+  swapTarget,
   onClick,
   onDragOver,
   onDragLeave,
   onDrop,
 }) {
-  if (square.letter) {
-    const cls = lastPlay ? "cell tile last-play" : "cell tile";
-    return html`<div class=${cls} data-row=${row} data-col=${col}>
+  if (square.letter && !pending) {
+    const cls = [
+      "cell tile",
+      lastPlay ? "last-play" : "",
+      swapTarget ? "swap-target" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return html`<div class=${cls} data-row=${row} data-col=${col}
+      onDragOver=${onDragOver} onDragLeave=${onDragLeave} onDrop=${onDrop}
+      onClick=${onClick}>
       <${Tile}
         letter=${square.letter}
         isBlank=${square.is_blank}
@@ -661,7 +687,10 @@ function Board({
     for (let col = 0; col < SIZE; col++) {
       const i = idx(row, col);
       const place = byPos.get(i);
+      const swapTarget =
+        game.mimi_mode && game.board[i].letter && game.board[i].is_blank && !place;
       const isEmpty = !game.board[i].letter && !place;
+      const droppable = isEmpty || swapTarget;
       cells.push(
         html`<${Cell}
           key=${i}
@@ -671,16 +700,17 @@ function Board({
           col=${col}
           cursor=${cursor}
           lastPlay=${lastPlaySet && lastPlaySet.has(i)}
+          swapTarget=${swapTarget}
           onClick=${() =>
             place ? onPendingClick(place) : onCellClick(row, col)}
-          onDragOver=${isEmpty ? (e) => {
+          onDragOver=${droppable ? (e) => {
             e.preventDefault();
-            showBoardDropGhost(e.currentTarget);
+            if (isEmpty) showBoardDropGhost(e.currentTarget);
           } : null}
-          onDragLeave=${isEmpty ? (e) => {
+          onDragLeave=${droppable ? (e) => {
             if (!e.currentTarget.contains(e.relatedTarget)) clearBoardDropGhost();
           } : null}
-          onDrop=${isEmpty ? (e) => {
+          onDrop=${droppable ? (e) => {
             e.preventDefault();
             clearActiveDragPreview();
             const data = e.dataTransfer.getData("text/plain");
@@ -729,7 +759,9 @@ function boardCellAtPoint(x, y, emptyOnly = false) {
       cell &&
       cell.dataset.row != null &&
       cell.dataset.col != null &&
-      (!emptyOnly || !cell.classList.contains("tile"))
+      (!emptyOnly ||
+        !cell.classList.contains("tile") ||
+        cell.classList.contains("swap-target"))
     ) {
       return cell;
     }
@@ -1999,13 +2031,15 @@ function App({ gameId, initial, autoZoom }) {
   function placeSelected(row, col) {
     const tile = rackTiles[selected];
     if (!tile) return;
+    const swap = Boolean(game.board[idx(row, col)].letter);
+    if (swap && !isSwapTarget(game, tile, row, col)) return;
     if (tile.is_blank) {
       setBlankPrompt({ row, col, rackId: selected });
       return;
     }
     setPending([
       ...pending,
-      { row, col, letter: tile.letter, isBlank: false, rackId: selected },
+      { row, col, letter: tile.letter, isBlank: false, isSwap: swap, rackId: selected },
     ]);
     setSelected(null);
   }
@@ -2051,7 +2085,12 @@ function App({ gameId, initial, autoZoom }) {
   function onCellClick(row, col) {
     if (!yourTurn || mode === "exchange") return;
     setError(null);
-    if (game.board[idx(row, col)].letter) return;
+    if (game.board[idx(row, col)].letter) {
+      if (selected !== null && isSwapTarget(game, rackTiles[selected], row, col)) {
+        placeSelected(row, col);
+      }
+      return;
+    }
     if (selected !== null) {
       placeSelected(row, col);
       return;
@@ -2163,7 +2202,8 @@ function App({ gameId, initial, autoZoom }) {
 
   function placeTileOnBoard(tile, row, col) {
     if (!yourTurn || mode !== "place") return;
-    if (game.board[idx(row, col)].letter) return;
+    const swap = Boolean(game.board[idx(row, col)].letter);
+    if (swap && !isSwapTarget(game, tile, row, col)) return;
     if (pending.some((p) => p.row === row && p.col === col)) return;
     if (tile.is_blank) {
       setBlankPrompt({ row, col, rackId: tile.id });
@@ -2171,7 +2211,7 @@ function App({ gameId, initial, autoZoom }) {
     }
     setPending([
       ...pending,
-      { row, col, letter: tile.letter, isBlank: false, rackId: tile.id },
+      { row, col, letter: tile.letter, isBlank: false, isSwap: swap, rackId: tile.id },
     ]);
     setSelected(null);
     clearCursorIfAt(row, col);
@@ -2181,7 +2221,8 @@ function App({ gameId, initial, autoZoom }) {
     if (!yourTurn || mode !== "place") return;
     const tile = rackTiles[tileId];
     if (!tile) return;
-    if (game.board[idx(row, col)].letter) return;
+    const swap = Boolean(game.board[idx(row, col)].letter);
+    if (swap && !isSwapTarget(game, tile, row, col)) return;
     if (pending.some((p) => p.row === row && p.col === col)) return;
     if (pending.some((p) => p.rackId === tileId)) return;
     if (tile.is_blank) {
@@ -2190,7 +2231,7 @@ function App({ gameId, initial, autoZoom }) {
     }
     setPending([
       ...pending,
-      { row, col, letter: tile.letter, isBlank: tile.is_blank, rackId: tileId },
+      { row, col, letter: tile.letter, isBlank: false, isSwap: swap, rackId: tileId },
     ]);
     setSelected(null);
     clearCursorIfAt(row, col);
@@ -2199,10 +2240,20 @@ function App({ gameId, initial, autoZoom }) {
   // Relocate an already-placed (pending) tile to another empty square.
   function movePending(rackId, row, col) {
     if (!yourTurn || mode !== "place") return;
-    if (game.board[idx(row, col)].letter) return;
+    const moved = pending.find((p) => p.rackId === rackId);
+    if (!moved) return;
+    const swap = Boolean(game.board[idx(row, col)].letter);
+    if (
+      swap &&
+      !isSwapTarget(game, { letter: moved.letter, is_blank: moved.isBlank }, row, col)
+    ) {
+      return;
+    }
     if (pending.some((p) => p.row === row && p.col === col)) return;
     setPending(
-      pending.map((p) => (p.rackId === rackId ? { ...p, row, col } : p)),
+      pending.map((p) =>
+        p.rackId === rackId ? { ...p, row, col, isSwap: swap } : p,
+      ),
     );
     clearCursorIfAt(row, col);
   }
@@ -2528,6 +2579,7 @@ function App({ gameId, initial, autoZoom }) {
       ${game.jax_mode ? html`<span class="game-badge">Jax Mode</span>` : null}
       ${game.shelli_mode ? html`<span class="game-badge">Shelli Mode</span>` : null}
       ${game.scott_mode ? html`<span class="game-badge">Scott Mode</span>` : null}
+      ${game.mimi_mode ? html`<span class="game-badge">Mimi Mode</span>` : null}
       ${game.hints_allowed > 0 ? html`<span class="game-badge">${game.hints_allowed} hint${game.hints_allowed > 1 ? "s" : ""}/player</span>` : null}
     </div>
     <${Scoreboard} game=${game} />
