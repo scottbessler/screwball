@@ -121,6 +121,8 @@ pub struct CreateForm {
     #[serde(default)]
     august_mode: Option<String>,
     #[serde(default)]
+    mimi_mode: Option<String>,
+    #[serde(default)]
     hints: Option<u8>,
 }
 
@@ -179,6 +181,7 @@ pub async fn create_game(
         shelli_mode: form.shelli_mode.is_some(),
         scott_mode: form.scott_mode.is_some(),
         august_mode: form.august_mode.is_some(),
+        mimi_mode: form.mimi_mode.is_some(),
         hints_allowed: form.hints.unwrap_or(0).min(3),
     };
     let game = game::new_game(specs, options, &mut rand::thread_rng());

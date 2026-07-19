@@ -37,6 +37,7 @@ fn first_move_scores_center_double_word() {
         &dict(),
         &placements,
         false,
+        false,
         WordRule::Standard,
     )
     .expect("valid play");
@@ -57,6 +58,7 @@ fn first_move_must_cover_center() {
         &dict(),
         &placements,
         false,
+        false,
         WordRule::Standard,
     )
     .unwrap_err();
@@ -73,6 +75,7 @@ fn rejects_words_not_in_dictionary() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Standard,
     )
@@ -92,6 +95,7 @@ fn grandpa_mode_rejects_uncommon_two_letter_words() {
         &dict(),
         &placements,
         false,
+        false,
         WordRule::Standard,
     )
     .expect("standard allows HA");
@@ -100,6 +104,7 @@ fn grandpa_mode_rejects_uncommon_two_letter_words() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Grandpa,
     )
@@ -118,6 +123,7 @@ fn grandpa_mode_allows_common_two_letter_words() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Grandpa,
     )
@@ -154,6 +160,7 @@ fn jax_mode_allows_top_names_not_in_dictionary() {
         &names_without_olivia,
         &placements,
         false,
+        false,
         WordRule::Standard,
     )
     .unwrap_err();
@@ -164,6 +171,7 @@ fn jax_mode_allows_top_names_not_in_dictionary() {
         &rack,
         &names_without_olivia,
         &placements,
+        false,
         false,
         WordRule::Jax,
     )
@@ -180,6 +188,7 @@ fn rejects_tiles_not_in_rack() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Standard,
     )
@@ -198,6 +207,7 @@ fn rejects_non_contiguous_placement() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Standard,
     )
@@ -223,6 +233,7 @@ fn second_move_must_connect() {
         &dict(),
         &placements,
         false,
+        false,
         WordRule::Standard,
     )
     .unwrap_err();
@@ -244,6 +255,7 @@ fn cross_word_play_scores_both_words() {
         &game.seats[1].rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Standard,
     )
@@ -269,6 +281,7 @@ fn bingo_awards_fifty_point_bonus() {
         &rack,
         &dict(),
         &placements,
+        false,
         false,
         WordRule::Standard,
     )
@@ -304,6 +317,7 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         &dict,
         &august_placements,
         true,
+        false,
         WordRule::Standard,
     )
     .expect("AUGUST is legal in August Mode");
@@ -322,6 +336,7 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         &dict,
         &oat_placements,
         true,
+        false,
         WordRule::Standard,
     )
     .expect("OAT is legal in August Mode");
@@ -345,6 +360,7 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         &dict,
         &bingo_placements,
         true,
+        false,
         WordRule::Standard,
     )
     .expect("seven-tile bingo is legal in August Mode");
@@ -371,6 +387,7 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         &dict,
         &[place(9, 7, 'T')],
         true,
+        false,
         WordRule::Standard,
     )
     .expect("completing AUGUST downward is legal");
@@ -399,6 +416,7 @@ fn august_mode_awards_bonus_for_august_word_and_regular_bingos_only() {
         &dict,
         &[place(9, 7, 'T'), place(9, 8, 'A')],
         true,
+        false,
         WordRule::Standard,
     )
     .expect("completing TA horizontally is legal");
@@ -543,6 +561,7 @@ fn game_with(seats: Vec<(Vec<Tile>, i32)>) -> Game {
         shelli_mode: false,
         scott_mode: false,
         august_mode: false,
+        mimi_mode: false,
         hints_allowed: 0,
         hints_used: vec![0; seat_count],
     }
@@ -622,4 +641,116 @@ fn best_play_is_not_recorded_without_scott_mode() {
     ]);
     play_first_cat(&mut game);
     assert!(game.moves[0].best.is_none());
+}
+
+/// Board with C, blank-as-A, T spelling CAT through the center.
+fn board_with_blank_cat() -> Board {
+    let mut board = Board::new();
+    board.set_tile(
+        Position::new(7, 6),
+        PlacedTile {
+            letter: 'C',
+            is_blank: false,
+        },
+    );
+    board.set_tile(
+        Position::new(7, 7),
+        PlacedTile {
+            letter: 'A',
+            is_blank: true,
+        },
+    );
+    board.set_tile(
+        Position::new(7, 8),
+        PlacedTile {
+            letter: 'T',
+            is_blank: false,
+        },
+    );
+    board
+}
+
+#[test]
+fn mimi_swap_scores_face_value_without_premium_and_returns_blank() {
+    let mut game = game_with(vec![
+        (vec![letter('A'), letter('S')], 0),
+        (vec![letter('O')], 0),
+    ]);
+    game.mimi_mode = true;
+    game.board = board_with_blank_cat();
+
+    // Play S at (7,9) to make CATS, swapping the real A onto the blank.
+    let placements = vec![place(7, 7, 'A'), place(7, 9, 'S')];
+    let mut rng = StdRng::seed_from_u64(5);
+    let recorded = apply_move(
+        &mut game,
+        &dict(),
+        0,
+        MoveKind::Play { placements },
+        &mut rng,
+    )
+    .expect("mimi swap play");
+
+    assert_eq!(recorded.words, vec!["CATS".to_string()]);
+    // C(3) + A(1, real letter now) + T(1) + S(1) = 6; the center double-word
+    // under the swapped A does not re-trigger.
+    assert_eq!(recorded.points, 6);
+    let swapped = game.board.tile_at(Position::new(7, 7)).unwrap();
+    assert!(!swapped.is_blank);
+    assert_eq!(swapped.letter, 'A');
+    assert_eq!(game.seats[0].rack, vec![Tile::Blank]);
+}
+
+#[test]
+fn mimi_swap_rejects_wrong_letter() {
+    let board = board_with_blank_cat();
+    let rack = vec![letter('E'), letter('S')];
+    let placements = vec![place(7, 7, 'E'), place(7, 9, 'S')];
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        true,
+        WordRule::Standard,
+    )
+    .unwrap_err();
+    assert_eq!(err, MoveError::MimiWrongLetter);
+}
+
+#[test]
+fn mimi_swap_requires_new_tiles_in_the_word() {
+    let board = board_with_blank_cat();
+    let rack = vec![letter('A')];
+    let placements = vec![place(7, 7, 'A')];
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        true,
+        WordRule::Standard,
+    )
+    .unwrap_err();
+    assert_eq!(err, MoveError::MimiSwapNeedsWord);
+}
+
+#[test]
+fn blank_squares_stay_occupied_without_mimi_mode() {
+    let board = board_with_blank_cat();
+    let rack = vec![letter('A'), letter('S')];
+    let placements = vec![place(7, 7, 'A'), place(7, 9, 'S')];
+    let err = validate_play(
+        &board,
+        &rack,
+        &dict(),
+        &placements,
+        false,
+        false,
+        WordRule::Standard,
+    )
+    .unwrap_err();
+    assert_eq!(err, MoveError::SquareOccupied);
 }

@@ -275,7 +275,7 @@ pub fn scored_plays(
     generate_plays(board, rack, generator_dict)
         .into_iter()
         .filter_map(|placements| {
-            validate_play(board, rack, dict, &placements, august_mode, rule)
+            validate_play(board, rack, dict, &placements, august_mode, false, rule)
                 .ok()
                 .map(|scored| (placements, scored))
         })

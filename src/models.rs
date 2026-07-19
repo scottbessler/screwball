@@ -222,6 +222,10 @@ pub struct Game {
     /// August Mode: replace the bag contents with repeating AUGUST letters.
     #[serde(default)]
     pub august_mode: bool,
+    /// Mimi Mode: reclaim a blank from the board by playing its real letter
+    /// from your rack through it as part of a word.
+    #[serde(default)]
+    pub mimi_mode: bool,
     #[serde(default)]
     pub hints_allowed: u8,
     #[serde(default)]

@@ -446,6 +446,15 @@ fn new_game_form() -> String {
         <span id="august-mode-help" class="tooltip-content" role="tooltip">Every tile is a letter from AUGUST (no blanks).</span>
       </span>
     </div>
+    <div class="form-option-row">
+      <label class="checkbox-label" for="mimi-mode">
+        <input id="mimi-mode" type="checkbox" name="mimi_mode" value="on" />
+        <span>Mimi Mode</span>
+      </label>
+      <span class="info-tooltip" tabindex="0" aria-describedby="mimi-mode-help">i
+        <span id="mimi-mode-help" class="tooltip-content" role="tooltip">Reclaim a blank from the board by playing its real letter from your rack through it.</span>
+      </span>
+    </div>
     <label class="hints-label">Hints per player
       <select name="hints">
         <option value="0" selected>None</option>
