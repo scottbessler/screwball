@@ -1258,6 +1258,7 @@ function pointsPerPlay(seat) {
 }
 
 function Scoreboard({ game }) {
+  const topScore = Math.max(...game.seats.map((seat) => seat.score));
   return html`<table class="scoreboard">
     <thead>
       <tr><th>Player</th><th>Type</th><th>Score</th><th title="Points per play">Pts/Play</th></tr>
@@ -1279,7 +1280,7 @@ function Scoreboard({ game }) {
                 ? `${seat.difficulty} bot`
                 : "human"}
           </td>
-          <td class="score">${seat.score}</td>
+          <td class=${topScore > 0 && seat.score === topScore ? "score leader" : "score"}>${seat.score}</td>
           <td class="score muted">${pointsPerPlay(seat)}</td>
         </tr>`,
       )}
@@ -1433,7 +1434,7 @@ function Results({ game }) {
         );
       }),
     ),
-    html`<a class="button" href="/">New game</a>`,
+    html`<a class="button" href="/games/new">New game</a> <a class="button ghost" href="/">Home</a>`,
   ]);
 }
 
@@ -1640,7 +1641,7 @@ function updateTurnAffordances() {
     .reduce((total, sourceCount) => total + sourceCount, 0);
   if (count === turnAffordanceCount) return;
   turnAffordanceCount = count;
-  setFavicon(count > 0);
+  setFavicon(count);
   setAppBadge(count);
   setTitleBadge(count);
 }
@@ -1664,22 +1665,25 @@ function setAppBadge(count) {
   }
 }
 
-function setFavicon(yourTurn) {
+function setFavicon(count) {
   const old = document.querySelector('link[rel="icon"]');
   if (old) old.remove();
   const link = document.createElement("link");
   link.rel = "icon";
   link.type = "image/svg+xml";
-  if (!yourTurn) {
+  if (!count) {
     link.href = BASE_FAVICON;
   } else {
+    const badge = count > 9 ? "9+" : String(count);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" rx="12" fill="#f6e6b4" stroke="#d8c27e" stroke-width="3"/>
   <text x="32" y="42" font-family="Georgia, serif" font-size="36" font-weight="700"
         text-anchor="middle" fill="#b4451f">S</text>
   <text x="52" y="56" font-family="system-ui, sans-serif" font-size="12" font-weight="600"
         text-anchor="middle" fill="#1f2933">1</text>
-  <circle cx="54" cy="10" r="9" fill="#e53e3e"/>
+  <circle cx="52" cy="12" r="11" fill="#e53e3e"/>
+  <text x="52" y="17" font-family="system-ui, sans-serif" font-size="14" font-weight="700"
+        text-anchor="middle" fill="#fff">${badge}</text>
 </svg>`;
     link.href = "data:image/svg+xml," + encodeURIComponent(svg);
   }
@@ -1841,8 +1845,13 @@ function App({ gameId, initial, autoZoom }) {
 
   useEffect(() => {
     setHintsRemaining(game.hints_remaining || 0);
+  }, [game.hints_remaining]);
+
+  // Clear a shown hint only when the turn moves on, not when the pushed state
+  // updates hints_remaining right after requesting one.
+  useEffect(() => {
     setHintResult(null);
-  }, [game.turn, game.hints_remaining]);
+  }, [game.turn]);
 
   // Track the last-rendered turn so a pushed state can detect the transition
   // *into* your turn (for the notification) without re-notifying repeatedly.
@@ -2462,6 +2471,7 @@ function App({ gameId, initial, autoZoom }) {
         type: "button",
         class: "button ghost",
         disabled: busy,
+        title: "Shortcut: Esc",
         onClick: clearPendingTiles,
       }, "Clear"),
       h("button", {
@@ -2475,8 +2485,9 @@ function App({ gameId, initial, autoZoom }) {
         type: "button",
         class: "button play-button",
         disabled: busy || !placementLegal(game, pending),
+        title: "Shortcut: Enter",
         onClick: submitPlay,
-      }, `Play ${pendingScore != null ? pendingScore : ""}`.trim()),
+      }, busy ? "Playing…" : `Play ${pendingScore != null ? pendingScore : ""}`.trim()),
     ];
   } else {
     controlButtons = [
@@ -2523,6 +2534,9 @@ function App({ gameId, initial, autoZoom }) {
               showBackspace=${mode === "place" && pending.length > 0}
               onHover=${game.john_mode ? setHoverLetter : null}
             />`
+          : null,
+        mode === "exchange"
+          ? html`<p class="muted exchange-tip">Tap tiles to swap, then press Swap.</p>`
           : null,
         error ? html`<p class="move-error" role="alert">${error}</p>` : null,
         pending.length === 7 && pendingScore != null

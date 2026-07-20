@@ -1666,6 +1666,8 @@ section.card + section.card {
 }
 
 .show-all-moves {
+  display: block;
+  margin-top: 0.35rem;
   background: none;
   border: none;
   padding: 0.25rem 0;
@@ -1674,6 +1676,22 @@ section.card + section.card {
   color: var(--accent);
   cursor: pointer;
   text-decoration: underline dotted;
+}
+
+.button.ghost.abandon-button {
+  display: block;
+  margin-top: 1rem;
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+.scoreboard .score.leader {
+  font-weight: 700;
+}
+
+.exchange-tip {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
 }
 
 .game-list-time {

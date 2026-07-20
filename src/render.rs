@@ -638,7 +638,14 @@ pub fn game_page(
 </section>"#,
         id = view.id,
     );
-    layout_with_head("Game — Screwball", &body, head, "game-page")
+    // Raw names: `layout_with_head` escapes the title itself.
+    let names: Vec<String> = view.seats.iter().map(|seat| seat.name.clone()).collect();
+    let title = if names.is_empty() {
+        "Game — Screwball".to_string()
+    } else {
+        format!("{} — Screwball", names.join(" vs "))
+    };
+    layout_with_head(&title, &body, head, "game-page")
 }
 
 fn render_join_form(view: &GameView) -> String {
@@ -725,6 +732,7 @@ fn render_status_banner(view: &GameView) -> String {
 }
 
 fn render_scoreboard(view: &GameView) -> String {
+    let top_score = view.seats.iter().map(|seat| seat.score).max().unwrap_or(0);
     let rows: String = view
         .seats
         .iter()
@@ -752,11 +760,16 @@ fn render_scoreboard(view: &GameView) -> String {
                 r#"<tr class="seat{turn}">
   <td>{name}{you}{hints}</td>
   <td class="muted">{kind}</td>
-  <td class="score">{score}</td>
+  <td class="{score_class}">{score}</td>
   <td class="score muted">{avg}</td>
 </tr>"#,
                 name = escape(&seat.name),
                 score = seat.score,
+                score_class = if top_score > 0 && seat.score == top_score {
+                    "score leader"
+                } else {
+                    "score"
+                },
                 avg = points_per_play(seat.score, seat.play_count),
             )
         })
