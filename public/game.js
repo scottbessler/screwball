@@ -2289,6 +2289,7 @@ function App({ gameId, initial, autoZoom }) {
         return;
       }
       setGame(data);
+      setHintResult(null);
       reset();
     } catch {
       setError("Network error — try again.");
