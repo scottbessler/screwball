@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::models::{BOARD_SIZE, Board, Game, GameStatus, SeatKind};
@@ -535,9 +536,11 @@ fn game_list_item(game: &Game, current: Uuid) -> String {
         r#"<li class="{item_class}">
   <a href="/games/{id}">{players}</a>
   <span class="game-list-status muted">{status}</span>{badge}
+  <span class="game-list-time muted">{time}</span>
 </li>"#,
         id = game.id,
         players = players.join(" vs "),
+        time = relative_time(effective_updated_at(game)),
     )
 }
 
@@ -564,6 +567,17 @@ fn open_game_list_item(game: &Game) -> String {
         id = game.id,
         players = players.join(" vs "),
     )
+}
+
+/// A coarse human-readable age for a game's last activity, e.g. "3h ago".
+fn relative_time(then: DateTime<Utc>) -> String {
+    let seconds = (Utc::now() - then).num_seconds().max(0);
+    match seconds {
+        0..=59 => "just now".to_string(),
+        60..=3599 => format!("{}m ago", seconds / 60),
+        3600..=86399 => format!("{}h ago", seconds / 3600),
+        _ => format!("{}d ago", seconds / 86400),
+    }
 }
 
 fn is_current_turn(game: &Game, current: Uuid) -> bool {
@@ -633,7 +647,14 @@ pub fn game_page(
 </section>"#,
         id = view.id,
     );
-    layout_with_head("Game — Screwball", &body, head, "game-page")
+    // Raw names: `layout_with_head` escapes the title itself.
+    let names: Vec<String> = view.seats.iter().map(|seat| seat.name.clone()).collect();
+    let title = if names.is_empty() {
+        "Game — Screwball".to_string()
+    } else {
+        format!("{} — Screwball", names.join(" vs "))
+    };
+    layout_with_head(&title, &body, head, "game-page")
 }
 
 fn render_join_form(view: &GameView) -> String {
@@ -720,6 +741,7 @@ fn render_status_banner(view: &GameView) -> String {
 }
 
 fn render_scoreboard(view: &GameView) -> String {
+    let top_score = view.seats.iter().map(|seat| seat.score).max().unwrap_or(0);
     let rows: String = view
         .seats
         .iter()
@@ -747,11 +769,16 @@ fn render_scoreboard(view: &GameView) -> String {
                 r#"<tr class="seat{turn}">
   <td>{name}{you}{hints}</td>
   <td class="muted">{kind}</td>
-  <td class="score">{score}</td>
+  <td class="{score_class}">{score}</td>
   <td class="score muted">{avg}</td>
 </tr>"#,
                 name = escape(&seat.name),
                 score = seat.score,
+                score_class = if top_score > 0 && seat.score == top_score {
+                    "score leader"
+                } else {
+                    "score"
+                },
                 avg = points_per_play(seat.score, seat.play_count),
             )
         })
